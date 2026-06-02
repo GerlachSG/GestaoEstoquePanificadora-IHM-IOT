@@ -1,4 +1,4 @@
-# <img src="https://img.icons8.com/?size=512&id=59871&format=png" width="40" valign="middle"> GESTÃO DE ESTOQUE & MONITORAMENTO IoT — PANIFICADORA INDUSTRIAL
+# GESTÃO DE ESTOQUE & MONITORAMENTO IoT — PANIFICADORA INDUSTRIAL
 
 > Solução inteligente integrada (IHM Mobile + IoT + IA Acionável + Backend) projetada para otimizar a gestão de estoques físicos e o controle térmico de câmaras frias em panificações industriais.
 
