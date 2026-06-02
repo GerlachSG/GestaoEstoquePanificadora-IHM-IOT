@@ -1,0 +1,229 @@
+{
+  "name": "Firebase - Consultar Contexto Padaria",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "query"
+            }
+          ]
+        }
+      },
+      "id": "c055762a-8fe7-4141-a639-df2372f30060",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        272,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/lotes",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        480,
+        352
+      ],
+      "id": "a0948350-2e7a-459d-9c29-74a34498b06e",
+      "name": "Lotes",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/limites",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        720,
+        352
+      ],
+      "id": "00846101-9d43-4474-aba4-ffbf74d777ee",
+      "name": "Limites",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/catalogo",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        944,
+        352
+      ],
+      "id": "ae3b1cfc-a5a6-4a0d-a06b-680b8f749593",
+      "name": "Catalogo",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Funções auxiliares de parse e formatação\nfunction parseField(val) {\n  if (!val) return null;\n  if (val.nullValue !== undefined) return null;\n  if (val.stringValue !== undefined) return val.stringValue;\n  if (val.integerValue !== undefined) return parseInt(val.integerValue, 10);\n  if (val.doubleValue !== undefined) return parseFloat(val.doubleValue);\n  if (val.booleanValue !== undefined) return val.booleanValue;\n  if (val.timestampValue !== undefined) return val.timestampValue;\n  if (val.mapValue) {\n    const obj = {};\n    for (const [k, v] of Object.entries(val.mapValue.fields || {})) {\n      obj[k] = parseField(v);\n    }\n    return obj;\n  }\n  if (val.arrayValue) {\n    return (val.arrayValue.values || []).map(parseField);\n  }\n  return null;\n}\n\nfunction parseDoc(doc) {\n  const id = (doc.name || '').split('/').pop();\n  const fields = {};\n  for (const [k, v] of Object.entries(doc.fields || {})) {\n    fields[k] = parseField(v);\n  }\n  return { id, ...fields };\n}\n\nfunction parseDateBR(str) {\n  if (!str || typeof str !== 'string') return null;\n  const br = str.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);\n  if (br) {\n    const [, d, m, y] = br;\n    return new Date(`${y}-${m}-${d}T00:00:00Z`);\n  }\n  const iso = new Date(str);\n  if (!isNaN(iso.getTime())) return iso;\n  return null;\n}\n\nfunction diffDays(fromDate, toDate) {\n  const ms = toDate.getTime() - fromDate.getTime();\n  return Math.ceil(ms / (1000 * 60 * 60 * 24));\n}\n\nfunction normalizeText(str) {\n  return String(str || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase();\n}\n\n// 1. CAPTURA DOS NÓS HTTP (Com safe navigation para evitar crash se vier vazio)\nconst lotesDocs = $('Lotes').first()?.json?.documents || [];\nconst limitesDocs = $('Limites').first()?.json?.documents || [];\nconst catalogoDocs = $('Catalogo').first()?.json?.documents || [];\nconst alertasDocs = $('Alertas').first()?.json?.documents || []; \nconst tarefasDocs = $('Tarefas').first()?.json?.documents || [];\n\nconst lotesRaw = lotesDocs.map(parseDoc);\nconst limitesRaw = limitesDocs.map(parseDoc);\nconst catalogoRaw = catalogoDocs.map(parseDoc);\nconst alertasRaw = alertasDocs.map(parseDoc);\nconst tarefasRaw = tarefasDocs.map(parseDoc);\n\n// Ajustado para pegar a data atual dinamicamente em vez de fixar em maio\nconst hoje = new Date(); \n\n// 1.5 MAPEAMENTO DAS TAREFAS PENDENTES\nconst lotesEmAndamento = new Set();\nconst produtosEmAndamento = new Set();\n\ntarefasRaw.forEach(tarefa => {\n  const statusTarefa = normalizeText(tarefa.status || '');\n  \n  if (statusTarefa.includes('pendente')) {\n    if (tarefa.loteId) lotesEmAndamento.add(tarefa.loteId);\n    if (tarefa.loteAlvo) lotesEmAndamento.add(tarefa.loteAlvo); \n    if (tarefa.produtoAlvo) produtosEmAndamento.add(tarefa.produtoAlvo);\n    if (tarefa.produtoId) produtosEmAndamento.add(tarefa.produtoId); \n  }\n});\n\n// 2. PROCESSAMENTO DOS LOTES E SENSORES\nconst lotesAtivos = lotesRaw\n  .filter(l => normalizeText(l.status) === 'ativo')\n  .map(l => {\n    const validadeDate = parseDateBR(l.validade || l.dataValidade);\n    return {\n      id: l.id,\n      item: l.item || null,\n      pesoKg: typeof l.pesoKg === 'number' ? l.pesoKg : Number(l.pesoKg || 0),\n      masterLote: l.masterLote || null,\n      diasParaVencer: validadeDate ? diffDays(hoje, validadeDate) : null\n    };\n  });\n\nconst alertasSensoresPendentes = alertasRaw\n  .filter(a => normalizeText(a.status) === 'pendente')\n  .map(a => ({\n    id: a.id,\n    tipo: a.tipoAlerta || 'Infraestrutura',\n    descricao: a.descricao,\n    severidade: a.severidade\n  }));\n\nconst limites = {};\nfor (const l of limitesRaw) {\n  limites[l.id] = { min: Number(l.min || 0), max: Number(l.max || 0) };\n}\n\nconst catalogo = {};\nfor (const c of catalogoRaw) {\n  catalogo[c.id] = c.nome || c.id;\n}\n\n// 3. MATEMÁTICA DE ESTOQUE E PREVISÃO\nconst estoqueAtual = {};\nfor (const lote of lotesAtivos) {\n  const produtoNome = normalizeText(lote.item);\n  if (!estoqueAtual[produtoNome]) estoqueAtual[produtoNome] = 0;\n  estoqueAtual[produtoNome] += lote.pesoKg;\n}\n\nlet alertasPreditivos = [];\nfor (const [idProduto, configLimite] of Object.entries(limites)) {\n  const nomeCatalogo = catalogo[idProduto] || idProduto;\n  const nomeNormalizado = normalizeText(nomeCatalogo);\n  const pesoAtual = estoqueAtual[nomeNormalizado] || 0;\n\n  const consumoDiarioEstimado = (configLimite.max * 0.05) || 5; \n  const diasAteZerar = pesoAtual > 0 ? Math.floor(pesoAtual / consumoDiarioEstimado) : 0;\n\n  if (diasAteZerar <= 7 || pesoAtual < configLimite.min) {\n    alertasPreditivos.push({\n      produtoId: idProduto,\n      produto: nomeCatalogo,\n      pesoAtualKg: pesoAtual,\n      diasAteZerar: diasAteZerar,\n      status: diasAteZerar <= 0 ? 'ZERADO' : 'RISCO DE RUPTURA'\n    });\n  }\n}\n\n// 4. SEPARAÇÃO DE URGÊNCIAS\nlet lotesDescarteImediato = lotesAtivos\n  .filter(l => l.diasParaVencer !== null && l.diasParaVencer < 0)\n  .map(l => ({ \n      item: l.item, \n      loteId: l.masterLote || l.id, \n      diasParaVencer: l.diasParaVencer\n  }));\n\n// 5. ESTOQUE GERAL (Onde a IA vai ler os limites Reais)\nconst estoqueGeral = {};\nfor (const [idProduto, configLimite] of Object.entries(limites)) {\n  const nomeCatalogo = catalogo[idProduto] || idProduto;\n  const nomeNormalizado = normalizeText(nomeCatalogo);\n  \n  estoqueGeral[nomeNormalizado] = {\n    atualKg: estoqueAtual[nomeNormalizado] || 0,\n    min: configLimite.min,\n    max: configLimite.max\n  };\n}\n\n// 6. RETORNO ÚNICO COMPRIMIDO PARA A IA\nreturn [\n  {\n    json: {\n      visaoGeral: {\n        totalLotesAtivos: lotesAtivos.length,\n        alertasEstoque: alertasPreditivos.length,\n        lotesVencidos: lotesDescarteImediato.length,\n        alertasInfraestrutura: alertasSensoresPendentes.length,\n        tarefasOperacionaisPendentes: lotesEmAndamento.size + produtosEmAndamento.size\n      },\n      estoqueGeral,\n      alertasPreditivos,\n      lotesDescarteImediato,\n      alertasSensoresPendentes\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        352
+      ],
+      "id": "b95deef2-2d7a-4d32-bc7f-24aeeac59965",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/alertas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1152,
+        352
+      ],
+      "id": "8306d289-624e-457d-b2b8-2ef14237d8b5",
+      "name": "Alertas",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/alertas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1360,
+        352
+      ],
+      "id": "d920129b-0b45-4346-a70f-984cda619c48",
+      "name": "Tarefas",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lotes": {
+      "main": [
+        [
+          {
+            "node": "Limites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limites": {
+      "main": [
+        [
+          {
+            "node": "Catalogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Catalogo": {
+      "main": [
+        [
+          {
+            "node": "Alertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alertas": {
+      "main": [
+        [
+          {
+            "node": "Tarefas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarefas": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "8f079452-2b2c-4bf8-aa74-e1dba7b09198",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9be2277b93e76b13c6d7b7e9278742c1ffd8593418f3e44ef6170389aac9039a"
+  },
+  "id": "ZD8T3EOpDUc8cTFk",
+  "tags": []
+}

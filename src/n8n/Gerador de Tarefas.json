@@ -1,0 +1,267 @@
+{
+  "name": "Gerador de Tarefas",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/lotes",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        480,
+        352
+      ],
+      "id": "277c3ea5-e4d7-43b9-b759-11c5d32705e3",
+      "name": "Lotes",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/limites",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        352
+      ],
+      "id": "a6f3e3e1-8568-411c-87e8-c64dd84b104a",
+      "name": "Limites",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/catalogo",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        848,
+        352
+      ],
+      "id": "b2fcbc17-75fd-4a71-a0a2-2251013c58dd",
+      "name": "Catalogo",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseField(val) {\n  if (!val) return null;\n  if (val.nullValue !== undefined) return null;\n  if (val.stringValue !== undefined) return val.stringValue;\n  if (val.integerValue !== undefined) return parseInt(val.integerValue, 10);\n  if (val.doubleValue !== undefined) return parseFloat(val.doubleValue);\n  if (val.booleanValue !== undefined) return val.booleanValue;\n  if (val.timestampValue !== undefined) return val.timestampValue;\n  if (val.mapValue) {\n    const obj = {};\n    for (const [k, v] of Object.entries(val.mapValue.fields || {})) {\n      obj[k] = parseField(v);\n    }\n    return obj;\n  }\n  if (val.arrayValue) {\n    return (val.arrayValue.values || []).map(parseField);\n  }\n  return null;\n}\n\nfunction parseDoc(doc) {\n  const id = (doc.name || '').split('/').pop();\n  const fields = {};\n  for (const [k, v] of Object.entries(doc.fields || {})) {\n    fields[k] = parseField(v);\n  }\n  return { id, ...fields };\n}\n\nfunction parseDateBR(str) {\n  if (!str || typeof str !== 'string') return null;\n  const br = str.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);\n  if (br) {\n    const [, d, m, y] = br;\n    return new Date(`${y}-${m}-${d}T00:00:00Z`);\n  }\n  const iso = new Date(str);\n  if (!isNaN(iso.getTime())) return iso;\n  return null;\n}\n\nfunction diffDays(fromDate, toDate) {\n  const ms = toDate.getTime() - fromDate.getTime();\n  return Math.ceil(ms / (1000 * 60 * 60 * 24));\n}\n\nfunction normalizeText(str) {\n  return String(str || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase();\n}\n\n// 1. Coleta de Dados\nconst lotesDocs    = $('Lotes').first().json.documents    || [];\nconst alertasDocs  = $('Alertas').first().json.documents  || [];\nconst tarefasDocs  = $('Tarefas').first().json.documents  || [];\nconst limitesDocs  = $('Limites').first().json.documents  || [];\nconst catalogoDocs = $('Catalogo').first().json.documents || [];\n\nconst lotesRaw    = lotesDocs.map(parseDoc);\nconst alertasRaw  = alertasDocs.map(parseDoc);\nconst tarefasRaw  = tarefasDocs.map(parseDoc);\nconst limitesRaw  = limitesDocs.map(parseDoc);\nconst catalogoRaw = catalogoDocs.map(parseDoc);\n\nconst hoje = new Date();\nhoje.setUTCHours(0, 0, 0, 0);\n\n// 2. Prevenção de Duplicatas (Lendo tarefas pendentes existentes)\nconst lotesJaBloqueados    = new Set();\nconst produtosJaBloqueados = new Set();\nconst alertasJaBloqueados  = new Set();\n\ntarefasRaw.forEach(tarefa => {\n  const s = normalizeText(tarefa.status || '');\n  if (s.includes('pendente')) {\n    if (tarefa.loteId)      lotesJaBloqueados.add(tarefa.loteId);\n    if (tarefa.loteAlvo)    lotesJaBloqueados.add(tarefa.loteAlvo);\n    if (tarefa.produto)     produtosJaBloqueados.add(normalizeText(tarefa.produto));\n    if (tarefa.produtoAlvo) produtosJaBloqueados.add(normalizeText(tarefa.produtoAlvo));\n    if (tarefa.alertaId)    alertasJaBloqueados.add(tarefa.alertaId);\n  }\n});\n\nconst catalogo = {};\nfor (const c of catalogoRaw) catalogo[c.id] = c.nome || c.id;\n\nconst limites = {};\nfor (const l of limitesRaw) limites[l.id] = { min: Number(l.min || 0), max: Number(l.max || 0) };\n\nconst tarefasParaCriar = [];\nconst lotesAtivos = lotesRaw.filter(l => normalizeText(l.status) === 'ativo');\n\n// 3. Análise de Estoque e Vencimentos (Agrupado por Produto)\nconst analiseEstoque = {};\n\nfor (const lote of lotesAtivos) {\n  const nomeProduto = lote.item || lote.produto; // Suporte para possíveis variações de nome do campo\n  if (!nomeProduto) continue;\n  \n  const nomeNorm = normalizeText(nomeProduto);\n  if (!analiseEstoque[nomeNorm]) {\n    analiseEstoque[nomeNorm] = { total: 0, vencido: 0, expirando7d: 0, nomeOriginal: nomeProduto };\n  }\n  \n  const peso = typeof lote.pesoKg === 'number' ? lote.pesoKg : Number(lote.pesoKg || 0);\n  analiseEstoque[nomeNorm].total += peso;\n  \n  const validadeDate = parseDateBR(lote.validade || lote.dataValidade);\n  if (validadeDate) {\n    const dias = diffDays(hoje, validadeDate);\n    \n    // GERAÇÃO TAREFA DE DESCARTE INDIVIDUAL POR LOTE\n    if (dias < 0) {\n      analiseEstoque[nomeNorm].vencido += peso;\n      const chave = lote.masterLote || lote.id;\n      if (!lotesJaBloqueados.has(chave)) {\n        tarefasParaCriar.push({\n          tipo: 'descarte',\n          produto: analiseEstoque[nomeNorm].nomeOriginal,\n          produtoAlvo: analiseEstoque[nomeNorm].nomeOriginal,\n          loteId: chave,\n          status: 'pendente',\n          instrucao: `Status Vencido (Descartar imediatamente): Lote ${chave} venceu há ${Math.abs(dias)} dia(s). Remover de circulação.`,\n          criadoEm: new Date().toISOString(),\n          criadoPor: 'sistema_autonomo'\n        });\n        lotesJaBloqueados.add(chave);\n      }\n    } else if (dias <= 7) {\n      analiseEstoque[nomeNorm].expirando7d += peso;\n    }\n  }\n}\n\n// 4. Geração de Tarefas de Reposição (Baseado nos Limites e Projeção)\nfor (const [idConfig, cfg] of Object.entries(limites)) {\n  const nomeCat = catalogo[idConfig] || idConfig;\n  const nomeNorm = normalizeText(nomeCat);\n  \n  if (produtosJaBloqueados.has(nomeNorm)) continue; // Já tem tarefa de reposição aberta para este produto\n  \n  const info = analiseEstoque[nomeNorm] || { total: 0, vencido: 0, expirando7d: 0, nomeOriginal: nomeCat };\n  \n  const estoqueValido = info.total - info.vencido; // O que realmente pode ser usado hoje\n  const estoqueProjetado = estoqueValido - info.expirando7d; // O que vai sobrar na próxima semana\n  \n  let instrucao = '';\n  let qtdRequerida = 0;\n  let criarReposicao = false;\n\n  // Lógica 1: Caiu abaixo do mínimo AGORA\n  if (estoqueValido < cfg.min) {\n    criarReposicao = true;\n    qtdRequerida = cfg.max - estoqueValido;\n    instrucao = `Status Urgente (Crítico): O estoque válido atual (${estoqueValido.toFixed(1)}kg) está abaixo do mínimo exigido (${cfg.min}kg). Repor com urgência para atingir a meta.`;\n  } \n  // Lógica 2: Vai cair abaixo do mínimo EM BREVE por causa de vencimentos\n  else if (estoqueProjetado < cfg.min && info.expirando7d > 0) {\n    criarReposicao = true;\n    qtdRequerida = cfg.max - estoqueProjetado;\n    instrucao = `Status Alerta (Atenção/Vence em Breve): Nos próximos 7 dias, ${info.expirando7d.toFixed(1)}kg irão vencer. Isso fará o estoque cair para ${estoqueProjetado.toFixed(1)}kg (abaixo do mínimo de ${cfg.min}kg). Produzir lote de reposição preventivo.`;\n  }\n\n  if (criarReposicao) {\n    tarefasParaCriar.push({\n      tipo: 'reposicao',\n      produto: info.nomeOriginal,\n      produtoAlvo: info.nomeOriginal,\n      quantidadeRequerida: Math.ceil(qtdRequerida), // Arredonda pra cima\n      status: 'pendente',\n      instrucao: instrucao,\n      criadoEm: new Date().toISOString(),\n      criadoPor: 'sistema_autonomo'\n    });\n    produtosJaBloqueados.add(nomeNorm); // Evita duplicatas nesta mesma execução\n  }\n}\n\n// 5. Geração de Tarefas de Manutenção (Alertas)\nfor (const alerta of alertasRaw.filter(a => normalizeText(a.status) === 'pendente')) {\n  if (!alertasJaBloqueados.has(alerta.id)) {\n    tarefasParaCriar.push({\n      tipo: 'manutencao',\n      produto: alerta.tipoAlerta || 'Sensor', // O app usa \"produto\" para exibir o local da manutenção\n      produtoAlvo: alerta.tipoAlerta || 'Sensor',\n      status: 'pendente',\n      instrucao: `Status Urgente (Crítico): Alerta detectado no sistema. \\nLocal/Sensor: ${alerta.id}\\nDescrição: ${alerta.descricao || 'Verificar equipamento.'}`,\n      criadoEm: new Date().toISOString(),\n      criadoPor: 'sistema_autonomo'\n    });\n    alertasJaBloqueados.add(alerta.id);\n  }\n}\n\n// 6. Retorno final para o Request HTTP do n8n\nif (tarefasParaCriar.length === 0) {\n  return [{ json: { nenhuma_tarefa: true } }];\n}\n\nreturn tarefasParaCriar.map(t => ({ json: t }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        352
+      ],
+      "id": "24413fd9-81f3-4a6b-90af-865a7030b1e6",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/alertas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1024,
+        352
+      ],
+      "id": "67429177-9135-4792-acb2-59a8437cc802",
+      "name": "Alertas",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/tarefas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1216,
+        352
+      ],
+      "id": "54b66119-0240-4cd9-8bc8-c9d390131909",
+      "name": "Tarefas",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        272,
+        352
+      ],
+      "id": "99a4d84b-f330-4e50-ad56-d6b49b7e89ef",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/tresirmaos-cloud/databases/(default)/documents/tarefas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"fields\": {\n      \"tipo\": { \"stringValue\": $json.tipo },\n      \"status\": { \"stringValue\": $json.status },\n      \"produto\": { \"stringValue\": $json.produto || \"\" },\n      \"produtoAlvo\": { \"stringValue\": $json.produtoAlvo || \"\" },\n      \"instrucao\": { \"stringValue\": $json.instrucao || \"\" },\n      \"loteId\": $json.loteId ? { \"stringValue\": $json.loteId } : { \"nullValue\": null },\n      \"quantidadeRequerida\": { \"integerValue\": $json.quantidadeRequerida ? $json.quantidadeRequerida : 0 },\n      \"criadoEm\": { \"stringValue\": $json.criadoEm },\n      \"criadoPor\": { \"stringValue\": $json.criadoPor }\n    }\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1632,
+        352
+      ],
+      "id": "efcacc9f-b199-4452-98a3-dc9ea1c75049",
+      "name": "HTTP Request",
+      "credentials": {
+        "googleApi": {
+          "id": "JqFnv44QUBavkhJO",
+          "name": "Google Service Account account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Lotes": {
+      "main": [
+        [
+          {
+            "node": "Limites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limites": {
+      "main": [
+        [
+          {
+            "node": "Catalogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Catalogo": {
+      "main": [
+        [
+          {
+            "node": "Alertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alertas": {
+      "main": [
+        [
+          {
+            "node": "Tarefas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarefas": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b6bd330f-82c1-45c5-bc04-160db639b89a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9be2277b93e76b13c6d7b7e9278742c1ffd8593418f3e44ef6170389aac9039a"
+  },
+  "id": "x4jevVVUsSeriX2s",
+  "tags": []
+}

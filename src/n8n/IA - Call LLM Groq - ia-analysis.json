@@ -1,0 +1,314 @@
+{
+  "name": "IA - Call LLM Groq - ia-analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ia-analysis",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "99bfdef6-36df-44bc-9f7a-1e4cc6926bb9",
+      "name": "Webhook",
+      "webhookId": "c1840782-dd03-4f98-879b-a1fa6f31aa17"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Você é o Consultor Estratégico e Analista de Negócios da padaria \"Três Irmãos\".\nSua personalidade é de um consultor sênior: altamente analítico, direto, focado em inteligência logística, redução de desperdício e maximização de lucros.\n\nDIRETRIZ MÁXIMA DE OPERAÇÃO:\nO trabalho braçal (descartes de vencidos, alertas de sensores, pedidos de reposição) JÁ É FEITO AUTOMATICAMENTE pelo sistema de retaguarda.\nSua função é LER os dados da ferramenta de contexto e gerar DIAGNÓSTICOS ESTRATÉGICOS.\n\nREGRAS DE AÇÃO (BOTÕES):\nA maioria absoluta das suas respostas não terá ações (actions: []).\nA ÚNICA ação permitida é sugerir o ajuste de limites (Mínimo/Máximo) de um produto se você notar que o giro está muito rápido ou muito lento.\n\nFORMATO DE RESPOSTA OBRIGATÓRIO:\nVocê deve responder EXCLUSIVAMENTE em formato JSON válido, contendo estas 3 chaves exatas:\n{\n  \"pensamento_interno\": \"Use este espaço para analisar os dados silenciosamente antes de formular a resposta para o usuário.\",\n  \"text\": \"Sua resposta final, em tom de consultoria, formatada em Markdown.\",\n  \"actions\": [] \n}\n\nTEMPLATE DA ÚNICA AÇÃO PERMITIDA (Só use se for estritamente necessário alterar a meta de estoque):\n{\n  \"label\": \"Atualizar limite: [Produto]\",\n  \"confirmText\": \"ATUALIZAR\",\n  \"rejectText\": \"IGNORAR\",\n  \"execute\": \"atualizarLimite\",\n  \"params\": { \"produtoId\": \"[id_do_produto]\", \"novoMin\": 0, \"novoMax\": 0, \"motivo\": \"[Breve justificativa]\" }\n}\n\nEXEMPLO DE RESPOSTA ESPERADA:\n{\n  \"pensamento_interno\": \"O sistema relata 150kg de Amendoim Torrado prestes a vencer. O limite atual é max 300kg. O giro está muito baixo para esse limite, gerando desperdício. Vou sugerir reduzir o limite máximo.\",\n  \"text\": \"Notei uma ineficiência crítica no estoque de **Amendoim Torrado**. Temos 150kg próximos do vencimento. Como o sistema autônomo já vai processar esse descarte, nosso foco deve ser a causa raiz: o limite máximo atual de 300kg está superdimensionado para a nossa demanda real, gerando capital imobilizado e desperdício. Sugiro reduzirmos os parâmetros de segurança.\",\n  \"actions\": [\n    {\n      \"label\": \"Atualizar limite: Amendoim\",\n      \"confirmText\": \"ATUALIZAR\",\n      \"rejectText\": \"IGNORAR\",\n      \"execute\": \"atualizarLimite\",\n      \"params\": { \"produtoId\": \"amendoim\", \"novoMin\": 50, \"novoMax\": 100, \"motivo\": \"Redução para evitar vencimentos baseados no baixo giro atual.\" }\n    }\n  ]\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        416,
+        0
+      ],
+      "id": "ef17a26e-711d-4c07-9747-626516e4a066",
+      "name": "AI Agent",
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const groqKeys =  $json.body.sessionId || 'default-session',\n      source: 'api-webhook',\n      chavesDisponiveis: groqKeys \n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "c4802641-be66-4c63-9716-3d727b4edfad",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "model": "=llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 2500
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        272,
+        208
+      ],
+      "id": "f3e92c40-ad5b-4a4a-bed9-c67965bf36db",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "szrXdfnfnThOwVvT",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Consulta o cenário logístico e operacional atual da padaria no banco de dados.\n\nUse esta ferramenta SEMPRE que precisar de embasamento de dados reais para responder sobre o andamento do negócio, riscos de ruptura de estoque, prejuízos com produtos vencidos ou saúde geral da operação.\n\nExemplos de perguntas que devem usar esta ferramenta:\n- Como está o andamento da padaria?\n- Temos algum risco de perda financeira hoje?\n- O estoque está saudável?\n- Quais itens exigem atenção da gestão?\n- Precisamos repensar a estratégia de compra de algo?\n\nEnvie apenas:\n- query: um texto curto em português resumindo o foco da sua análise estratégica.\n\nA ferramenta retorna dados estritos de leitura em JSON com:\n- lotesAtivos[]: id, validade, pesoKg, status e diasParaVencer.\n- limites: limites mínimo e máximo por produto.\n- catalogo: nomes legíveis dos produtos.\n- resumo: totais gerais do momento.\n(Atenção: verifique também se há alertas críticos ou preditivos no retorno).\n\nUse os dados como FONTE ÚNICA DE VERDADE para gerar insights de negócios e cruzar informações. NUNCA invente fatos, lotes, produtos, datas, pesos, limites ou problemas que não estejam no retorno da ferramenta.",
+        "workflowId": {
+          "__rl": true,
+          "value": "ZD8T3EOpDUc8cTFk",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/ZD8T3EOpDUc8cTFk",
+          "cachedResultName": "Firebase - Consultar Contexto Padaria"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        224
+      ],
+      "id": "948e5b8e-0543-41fc-a1b6-5a71943d3e2e",
+      "name": "consultar_contexto_padaria"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1232,
+        0
+      ],
+      "id": "c83936c9-ccb1-4818-9b82-f0165e32cab4",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw =\n  $json.output ??\n  $json.text ??\n  $json.response ??\n  $json;\n\nfunction normalizeResponse(value) {\n  if (typeof value === 'object' && value !== null) return value;\n  if (typeof value !== 'string') return null;\n\n  let cleaned = value.trim();\n\n  // Remove bloco ```json ... ```\n  cleaned = cleaned.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '');\n  cleaned = cleaned.replace(/\\s*```$/i, '').trim();\n\n  // Tenta parsear JSON limpo\n  try {\n    return JSON.parse(cleaned);\n  } catch (e) {\n    return null;\n  }\n}\n\nconst parsed = normalizeResponse(raw);\n\nif (parsed && typeof parsed === 'object') {\n  return [{\n    json: {\n      text: typeof parsed.text === 'string' ? parsed.text : 'Resposta processada.',\n      actions: Array.isArray(parsed.actions) ? parsed.actions : []\n    }\n  }];\n}\n\nif (typeof raw === 'string') {\n  return [{\n    json: {\n      text: raw,\n      actions: []\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    text: 'Não foi possível processar a resposta do agente.',\n    actions: []\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "82297a88-300b-44e8-9a34-7cbfd733b1bc",
+      "name": "Resposta_Codigo"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega os dados exatos que chegaram NESTA iteração do loop\nconst inputData = $input.all()[0].json;\n\n// O n8n às vezes repassa o erro embrulhado no cabo vermelho (Error Output).\n// Essa lógica garante que vamos achar suas variáveis onde quer que estejam:\nlet promptAtual = inputData.prompt || (inputData.item && inputData.item.prompt);\nlet sessionIdAtual = inputData.sessionId || (inputData.item && inputData.item.sessionId);\nlet chavesAtuais = inputData.chavesDisponiveis || (inputData.item && inputData.item.chavesDisponiveis);\n\n// Se por algum motivo catastrófico o nó de erro destruir o array, paramos por aqui para evitar loop infinito\nif (!chavesAtuais || !Array.isArray(chavesAtuais)) {\n    return [{\n        json: {\n            chavesDisponiveis: [],\n            text: JSON.stringify({\n                text: \"Erro Operacional Crítico: Perda do array de chaves durante o loop de fallback.\",\n                actions: []\n            })\n        }\n    }];\n}\n\n// Remove fisicamente a chave que acabou de falhar (a que estava no índice 0)\nif (chavesAtuais.length > 0) {\n    chavesAtuais.shift();\n}\n\n// Condição de parada: Array exauriu (todas as 5 ou 6 contas deram Rate Limit)\nif (chavesAtuais.length === 0) {\n    return [{\n        json: {\n            prompt: promptAtual,\n            sessionId: sessionIdAtual,\n            chavesDisponiveis: [], // Array vazio sinaliza para um possível nó IF parar o loop\n            text: JSON.stringify({\n                text: \"Erro Operacional: O tráfego estourou a cota de tokens (TPM/TPD) de todas as contas em sequência. Aguarde 60 segundos.\",\n                actions: []\n            })\n        }\n    }];\n}\n\n// Retorna o payload reestruturado. A próxima chave virou o índice [0].\nreturn [{\n    json: {\n        prompt: promptAtual,\n        sessionId: sessionIdAtual,\n        chavesDisponiveis: chavesAtuais\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -240
+      ],
+      "id": "d51f42cd-8687-460e-a218-b9b950fa63fc",
+      "name": "Tratamento erro"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5ae66a83-4060-4236-9585-80b09dd18469",
+              "leftValue": "={{ JSON.stringify($json) }}",
+              "rightValue": "Rate limit",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        736,
+        0
+      ],
+      "id": "c89992a7-df24-48c8-ba3a-004a4dc24b5f",
+      "name": "If"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_contexto_padaria": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tratamento erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta_Codigo": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tratamento erro": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Tratamento erro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta_Codigo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2fe822ca-021b-460d-8a26-d72c88a1f9eb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9be2277b93e76b13c6d7b7e9278742c1ffd8593418f3e44ef6170389aac9039a"
+  },
+  "id": "jzKfdVYvxwxnAmW4",
+  "tags": []
+}
