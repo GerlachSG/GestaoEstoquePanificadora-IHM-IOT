@@ -6,13 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBNmPyufIeXznoUWvUxjp7JC9c82E5_5nk",
-  authDomain: "tresirmaos-cloud.firebaseapp.com",
-  projectId: "tresirmaos-cloud",
-  storageBucket: "tresirmaos-cloud.firebasestorage.app",
-  messagingSenderId: "544613186034",
-  appId: "1:544613186034:web:5866cb7636280291bed36b",
-  measurementId: "G-W0J67D3BZ1"
 };
 
 // Inicializa o Firebase
