@@ -1,0 +1,285 @@
+/* Variáveis de Cores Baseadas no Design System */
+:root {
+    --header-bg: #768AA4;
+    --main-bg: #212121;
+    --card-bg: #E9EDF8;
+    --text-light: #FFFFFF;
+    --text-dark: #111111;
+    
+    --status-normal: #4CAF50;
+    --status-alerta: #FBC02D;
+    --status-urgente: #1976D2;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: var(--main-bg);
+    color: var(--text-dark);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Evita rolagem, ideal para painel fixo */
+}
+
+/* Cabeçalho */
+.top-header {
+    background-color: var(--header-bg);
+    color: var(--text-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    height: 90px;
+}
+
+.top-header h1 {
+    font-size: 34px;
+    font-weight: 600;
+}
+
+.clock-container {
+    text-align: right;
+}
+
+.clock-container .date {
+    font-size: 22px;
+}
+
+.clock-container .time {
+    font-size: 30px;
+    font-weight: bold;
+}
+
+/* Grid Principal */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1.5fr; 
+    gap: 20px;
+    padding: 20px;
+    flex: 1; 
+}
+
+/* Cards */
+.card {
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.card-header {
+    background-color: var(--header-bg); 
+    color: var(--text-light);
+    padding: 15px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.card-content {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Estilos da Câmara --- */
+.camara-content {
+    justify-content: center;
+    gap: 50px;
+}
+
+.medicao {
+    text-align: center;
+}
+
+.medicao-label {
+    display: block;
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.status-box {
+    padding: 25px;
+    border-radius: 4px;
+    font-size: 36px;
+    font-weight: bold;
+    color: var(--text-dark); 
+    border: 2px solid rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-normal { background-color: var(--status-normal); }
+.status-alerta { background-color: var(--status-alerta); }
+.status-urgente { background-color: var(--status-urgente); }
+
+/* --- Estilos do Inventário --- */
+.inventario-item {
+    margin-bottom: 30px;
+}
+
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.item-name-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-alerta {
+    color: #d32f2f; 
+    font-size: 30px;
+    display: none; 
+}
+
+.item-name {
+    font-size: 26px;
+}
+
+.item-values {
+    font-size: 24px;
+}
+
+.item-max {
+    font-size: 18px;
+    font-weight: normal;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 35px;
+    background-color: #fff;
+    border: 1px solid #000;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--status-urgente); 
+    transition: width 0.5s ease;
+}
+
+.progress-bar.alerta-bg {
+    background-color: var(--status-alerta); 
+}
+.progress-bar.normal-bg {
+    background-color: var(--status-normal); 
+}
+
+/* Animação Fade (Para rotações) */
+.fade-container {
+    transition: opacity 0.5s ease-in-out;
+    opacity: 1;
+}
+
+.fade-out {
+    opacity: 0;
+}
+
+/* --- Estilos de Alertas (Tarefas) --- */
+.alertas-content {
+    gap: 20px;
+}
+
+.alerta-card {
+    border: 2px solid var(--text-dark);
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    margin-bottom: 15px; /* Adicionado margem para caso de múltiplos na tela */
+}
+
+.alerta-header {
+    display: flex;
+}
+
+.alerta-info {
+    flex: 1;
+    padding: 12px;
+    border-right: 2px solid var(--text-dark);
+}
+
+.alerta-label {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.alerta-produto {
+    font-size: 22px; /* Aumentado */
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.alerta-acao {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-weight: bold;
+    font-size: 20px; /* Aumentado */
+    min-width: 140px;
+}
+
+.bg-urgente { background-color: var(--status-urgente); color: var(--text-light); }
+.bg-alerta { background-color: var(--status-alerta); color: var(--text-dark); }
+
+.alerta-instrucao {
+    padding: 15px;
+    font-size: 18px; /* Aumentado */
+    background-color: #fff; /* Removido o amarelo, fundo branco agora */
+    border-top: 2px solid var(--text-dark);
+    font-weight: bold;
+}
+
+.loading-text {
+    text-align: center;
+    font-size: 22px; /* Aumentado */
+    margin-top: 20px;
+}
+
+/* --- Progresso da Reposição (Card Alertas) --- */
+.alerta-progresso-container {
+    padding: 15px;
+    background-color: #fff;
+    border-top: 2px solid var(--text-dark);
+}
+
+.alerta-progresso-text {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: var(--text-dark);
+}
+
+.alerta-progresso-bar-bg {
+    width: 100%;
+    height: 35px;
+    background-color: #fff;
+    border: 1px solid #000;
+}
+
+.alerta-progresso-bar-fill {
+    height: 100%;
+    background-color: var(--status-normal);
+    transition: width 0.5s ease;
+}

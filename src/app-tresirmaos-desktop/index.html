@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Estoque - Padaria</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Importando fonte para o ícone de alerta -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+</head>
+<body>
+    <header class="top-header">
+        <h1>Controle de Estoque</h1>
+        <div class="clock-container">
+            <div id="data-atual" class="date">--/--/----</div>
+            <div id="hora-atual" class="time">--:--:--</div>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- Card 1: Condições da Câmara -->
+        <section class="card">
+            <div class="card-header">
+                <h2>Condições da Câmara</h2>
+            </div>
+            <div class="card-content camara-content">
+                <div class="medicao">
+                    <span class="medicao-label">Temperatura</span>
+                    <div id="camara-temperatura-box" class="status-box status-normal">
+                        <span id="camara-temperatura-valor">Carregando...</span>
+                    </div>
+                </div>
+                
+                <div class="medicao">
+                    <span class="medicao-label">Umidade</span>
+                    <div id="camara-umidade-box" class="status-box status-normal">
+                        <span id="camara-umidade-valor">Carregando...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Card 2: Inventário -->
+        <section class="card">
+            <div class="card-header">
+                <h2>Inventário de Matéria-Prima</h2>
+            </div>
+            <div class="card-content inventario-content">
+                <div id="inventario-lista" class="fade-container">
+                    <!-- Os itens do inventário serão injetados aqui via JavaScript -->
+                    <div class="loading-text">Conectando ao banco de dados...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Card 3: Alertas Gerais -->
+        <section class="card">
+            <div class="card-header">
+                <h2>Alertas Gerais</h2>
+            </div>
+            <div class="card-content alertas-content fade-container" id="alertas-lista">
+                 <!-- Os alertas serão injetados aqui via JavaScript -->
+                 <div class="loading-text">Aguardando alertas...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Adicionado type="module" para suportar o SDK v9 do Firebase -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>
