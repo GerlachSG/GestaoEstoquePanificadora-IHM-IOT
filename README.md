@@ -134,7 +134,7 @@ O middleware que conecta as leituras rápidas da fábrica ao banco de dados Fire
    ```
 3. Instale as dependências leves:
    ```bash
-   pip install Flask requests google-auth
+   pip install Flask requests google-auth flask-cors
    ```
 4. Execute o servidor:
    ```bash

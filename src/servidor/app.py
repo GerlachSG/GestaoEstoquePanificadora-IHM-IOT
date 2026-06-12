@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 import socket
 import subprocess
@@ -8,6 +9,8 @@ from state import update_telemetry, get_telemetry, push_alert, get_alerts, utc_n
 from firestore_client import list_documents, get_document, create_alert
 
 app = Flask(__name__)
+CORS(app)
+
 
 
 def get_local_ip():
@@ -30,7 +33,7 @@ def print_server_info():
     print(f"Localhost      -> http://127.0.0.1:{PORT}")
     print(f"IP da rede     -> http://{local_ip}:{PORT}")
     print(f"Health check   -> http://{local_ip}:{PORT}/health")
-    print(f"Temperaturas   -> http://{local_ip}:{PORT}/api/temperaturas")
+    print(f"Medidas (T/H)  -> http://{local_ip}:{PORT}/api/medidas")
     print(f"Alertas        -> http://{local_ip}:{PORT}/api/alertas")
     print(f"ESP32 Telemetria -> http://{local_ip}:{PORT}/api/esp32/telemetria")
     print(f"ESP32 Alertas    -> http://{local_ip}:{PORT}/api/esp32/alertas")
@@ -51,8 +54,12 @@ def health():
     })
 
 
+@app.get("/api/medidas")
 @app.get("/api/temperaturas")
-def api_get_temperaturas():
+@app.get("/api/umidades")
+@app.get("/api/umidade")
+@app.get("/api/humidade")
+def api_get_medidas():
     return jsonify(get_telemetry())
 
 
