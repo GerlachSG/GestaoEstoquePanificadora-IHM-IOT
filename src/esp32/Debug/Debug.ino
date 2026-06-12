@@ -10,17 +10,15 @@
 const char* WIFI_SSID = "Blue Whale Storm"; // "WIFI_IOT_CFP301";
 const char* WIFI_PASSWORD = "Sesi2020";  // "Ac3sn0cfp1@iot";
 
-const char* PYTHON_TELEMETRIA_URL = "http://10.109.132.11:8081/api/esp32/telemetria";
-const char* PYTHON_ALERTA_URL     = "http://10.109.132.11:8081/api/esp32/alertas";
+const char* PYTHON_TELEMETRIA_URL = "http://10.141.185.11:8081/api/esp32/telemetria";
+const char* PYTHON_ALERTA_URL     = "http://10.141.185.11:8081/api/esp32/alertas";
 
 // =========================
 // DEBUG DOS SENSORES
 // =========================
-const bool DEBUG_SENSOR_1 = false;
-const bool DEBUG_SENSOR_2 = false;
-const bool DEBUG_SENSOR_3 = false;
-
-const unsigned long DEBUG_INICIO_SUBIDA_MS = 5000;
+const bool DEBUG_SENSOR_1 = true;
+const bool DEBUG_SENSOR_2 = true;
+const bool DEBUG_SENSOR_3 = true;
 
 const float DEBUG_TEMP_BASE_1 = 24.0;
 const float DEBUG_TEMP_BASE_2 = 24.5;
@@ -29,7 +27,6 @@ const float DEBUG_UMID_BASE_1 = 55.0;
 const float DEBUG_UMID_BASE_2 = 56.0;
 const float DEBUG_UMID_BASE_3 = 54.0;
 
-const float DEBUG_INCREMENTO_TEMP_1 = 3.5;
 
 // =========================
 // ALERTA MANUAL VIA SERIAL
@@ -52,7 +49,6 @@ DHT dht3(DHTPIN3, DHTTYPE);
 
 unsigned long ultimoAlertaTemp[3] = {0, 0, 0};
 unsigned long ultimoAlertaUmid[3] = {0, 0, 0};
-unsigned long tempoInicial = 0;
 unsigned long ultimaLeitura = 0;
 int cicloDebug = 0;
 
@@ -164,15 +160,9 @@ void enviarAlerta(String descricao, String tipoAlerta, int sensor, float mediaTe
 }
 
 float getDebugTempSensor1() {
-  unsigned long tempoDecorrido = millis() - tempoInicial;
-
-  if (tempoDecorrido < DEBUG_INICIO_SUBIDA_MS) {
-    return DEBUG_TEMP_BASE_1;
-  }
-
-  int passos = (tempoDecorrido - DEBUG_INICIO_SUBIDA_MS) / INTERVALO_LEITURA;
-  return DEBUG_TEMP_BASE_1 + (passos * DEBUG_INCREMENTO_TEMP_1);
+  return DEBUG_TEMP_BASE_1;
 }
+
 
 float getDebugHumidityOscilando(float base, int offset) {
   return base + ((cicloDebug + offset) % 3);
@@ -267,7 +257,6 @@ void setup() {
   dht3.begin();
 
   conectarWiFi();
-  tempoInicial = millis();
 }
 
 void loop() {
