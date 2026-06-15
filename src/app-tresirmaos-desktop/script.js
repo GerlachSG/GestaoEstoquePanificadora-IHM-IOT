@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDocsFromServer } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBNmPyufIeXznoUWvUxjp7JC9c82E5_5nk",
@@ -17,6 +17,19 @@ const USER_EMAIL = "on-premise@tresirmaos.com";
 const USER_PASSWORD = "123456"; 
 
 const PYTHON_API_URL = "http://127.0.0.1:5000/api/status";
+const API_MEDIDAS = 'https://temperaturas-api-igor.loca.lt/api/medidas';
+const API_ALERTAS = 'https://temperaturas-api-igor.loca.lt/api/alertas';
+
+const SVG_VENCIDO = `<img src="assets/alerta.svg" width="30" height="30" alt="Vencido" title="Lote Vencido / Expirado">`;
+const SVG_ATENCAO = `<img src="assets/atencao.svg" width="30" height="30" alt="Atenção" title="Atenção: Próximo ao limite ou Vencendo">`;
+const SVG_URGENTE = `<img src="assets/urgente.svg" width="30" height="30" alt="Urgente" title="Urgente: Abaixo do Mínimo!">`;
+
+function getIconeSvg(status) {
+    if (status === 'vencido') return SVG_VENCIDO; // Amarelo
+    if (status === 'alerta') return SVG_ATENCAO; // Laranja
+    if (status === 'urgente') return SVG_URGENTE; // Vermelho
+    return '';
+}
 
 // Inicializa Firebase
 const app = initializeApp(firebaseConfig);
@@ -25,6 +38,28 @@ const db = getFirestore(app);
 
 // Globais Compartilhadas
 let lotesGlobais = [];
+
+// --- FUNÇÕES UTILITÁRIAS (Igual n8n) ---
+function normalizeText(str) {
+    return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+}
+
+function parseDateBR(str) {
+    if (!str || typeof str !== 'string') return null;
+    const br = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (br) {
+        const [, d, m, y] = br;
+        return new Date(`${y}-${m}-${d}T00:00:00Z`);
+    }
+    const iso = new Date(str);
+    if (!isNaN(iso.getTime())) return iso;
+    return null;
+}
+
+function diffDays(fromDate, toDate) {
+    const ms = toDate.getTime() - fromDate.getTime();
+    return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
 
 // --- RELÓGIO ---
 function atualizarRelogio() {
@@ -63,24 +98,53 @@ async function realizarLogin() {
 // --- CARD 1: CÂMARA (API PYTHON) ---
 async function carregarCamara() {
     try {
-        const response = await fetch(PYTHON_API_URL);
-        if (!response.ok) throw new Error("Erro na API da Câmara");
-        const data = await response.json();
+        const headers = {
+            'Bypass-Tunnel-Reminder': 'true',
+            'Accept': 'application/json'
+        };
+
+        const [resMedidas, resAlertas] = await Promise.all([
+            fetch(API_MEDIDAS, { headers }),
+            fetch(API_ALERTAS, { headers })
+        ]);
+
+        const dataMedidas = await resMedidas.json();
+        const dataAlertas = await resAlertas.json();
         
-        const tempValor = data.temperatura || 0;
-        const umidValor = data.umidade || 0;
+        const tempValor = dataMedidas.temperaturaMedia ? parseFloat(dataMedidas.temperaturaMedia).toFixed(2) : '0.00';
+        const umidValor = dataMedidas.umidadeMedia ? parseFloat(dataMedidas.umidadeMedia).toFixed(2) : '0.00';
+        
+        let statusGeral = 'normal';
+        
+        if (dataAlertas && dataAlertas.itens && dataAlertas.itens.length > 0) {
+            const temVencido = dataAlertas.itens.some(a => a.status?.toLowerCase() === 'vencido');
+            const temUrgente = dataAlertas.itens.some(a => a.status?.toLowerCase() === 'urgente');
+            const temAlerta = dataAlertas.itens.some(a => a.status?.toLowerCase() === 'alerta');
+
+            if (temVencido) statusGeral = 'vencido';
+            else if (temUrgente) statusGeral = 'urgente';
+            else if (temAlerta) statusGeral = 'alerta';
+        }
         
         const tempBox = document.getElementById('camara-temperatura-box');
         const umidBox = document.getElementById('camara-umidade-box');
+        const iconHeader = document.getElementById('camara-status-icon');
         
-        document.getElementById('camara-temperatura-valor').innerHTML = `${tempValor}ºC ${data.alerta_temp ? '<span class="material-symbols-outlined">warning</span>' : ''}`;
-        document.getElementById('camara-umidade-valor').innerHTML = `${umidValor}% ${data.alerta_umid ? '<span class="material-symbols-outlined">warning</span>' : ''}`;
+        if(iconHeader) iconHeader.innerHTML = getIconeSvg(statusGeral);
+        
+        document.getElementById('camara-temperatura-valor').innerHTML = `${tempValor} °C`;
+        document.getElementById('camara-umidade-valor').innerHTML = `${umidValor} %`;
 
-        tempBox.className = 'status-box ' + (data.alerta_temp ? 'status-alerta' : 'status-normal');
-        umidBox.className = 'status-box ' + (data.alerta_umid ? 'status-alerta' : 'status-normal');
+        let boxClass = 'status-normal';
+        if (statusGeral === 'vencido') boxClass = 'status-vencido';
+        else if (statusGeral === 'urgente') boxClass = 'status-urgente';
+        else if (statusGeral === 'alerta') boxClass = 'status-alerta';
+
+        tempBox.className = `status-box ${boxClass}`;
+        umidBox.className = `status-box ${boxClass}`;
         
     } catch (error) {
-        console.error("Erro ao conectar no Servidor Python:", error);
+        console.error("Erro ao conectar no Orquestrador:", error);
         document.getElementById('camara-temperatura-valor').textContent = "OFFLINE";
         document.getElementById('camara-umidade-valor').textContent = "OFFLINE";
         document.getElementById('camara-temperatura-box').className = 'status-box status-alerta';
@@ -97,66 +161,114 @@ let rotativoInterval;
 async function carregarInventario() {
     if (!isAutenticado) return;
     try {
-        const limites = {};
-        const estoques = {};
+        // 1. Buscar Catálogo
+        const catalogoSnapshot = await getDocsFromServer(collection(db, "catalogo"));
+        const catalogo = {};
+        catalogoSnapshot.forEach(doc => {
+            catalogo[doc.id] = doc.data().nome;
+        });
 
-        // 1. Buscar Limites com SDK oficial
-        const limitesSnapshot = await getDocs(collection(db, "limites"));
+        // 2. Buscar Limites
+        const limitesSnapshot = await getDocsFromServer(collection(db, "limites"));
+        const limites = {};
         limitesSnapshot.forEach((doc) => {
             const data = doc.data();
             limites[doc.id] = {
                 min: parseInt(data.min) || 0,
-                max: parseInt(data.max) || 100,
-                nome: doc.id.replace(/_/g, ' ') 
+                max: parseInt(data.max) || 1
             };
         });
 
-        // 2. Buscar Lotes com SDK oficial E popular array global
+        // 3. Buscar Lotes e cruzar validades (Igual n8n)
+        const hoje = new Date();
+        hoje.setUTCHours(0, 0, 0, 0);
+        
         lotesGlobais = [];
-        const lotesSnapshot = await getDocs(collection(db, "lotes"));
+        const analiseEstoque = {};
+        const lotesSnapshot = await getDocsFromServer(collection(db, "lotes"));
+        
         lotesSnapshot.forEach((doc) => {
             const data = doc.data();
             if (data.status === 'ativo') {
                 const itemRaw = data.item || data.produto || "";
+                const peso = parseInt(data.pesoKg) || 0;
                 
-                // Salvar para o escopo global (usado pelos alertas de reposição)
                 lotesGlobais.push({
                     id: doc.id,
                     produto: itemRaw,
-                    pesoKg: parseInt(data.pesoKg) || 0,
+                    pesoKg: peso,
                     dataCriacao: data.dataCriacao || data.criadoEm || ""
                 });
 
-                // Lógica original de agregação do inventário
-                const itemNormalized = itemRaw.toLowerCase().replace(/ /g, '_');
-                const peso = parseInt(data.pesoKg) || 0;
+                const nomeNorm = normalizeText(itemRaw);
+                if (!analiseEstoque[nomeNorm]) {
+                    analiseEstoque[nomeNorm] = { total: 0, vencido: 0, expirando7d: 0 };
+                }
                 
-                let itemKey = Object.keys(limites).find(k => k === itemNormalized || limites[k].nome.toLowerCase() === itemRaw.toLowerCase()) || itemNormalized;
-
-                if (!estoques[itemKey]) estoques[itemKey] = 0;
-                estoques[itemKey] += peso;
+                analiseEstoque[nomeNorm].total += peso;
+                
+                const validadeDate = parseDateBR(data.validade || data.dataValidade);
+                if (validadeDate) {
+                    const dias = diffDays(hoje, validadeDate);
+                    if (dias < 0) {
+                        analiseEstoque[nomeNorm].vencido += peso;
+                    } else if (dias <= 7) {
+                        analiseEstoque[nomeNorm].expirando7d += peso;
+                    }
+                }
             }
         });
 
-        // 3. Montar Array
+        // 4. Montar Array cruzando Catálogo, Limites e Datas
         inventarioItens = [];
-        for (const [key, limite] of Object.entries(limites)) {
-            const atual = estoques[key] || 0;
-            const maxVal = limite.max > 0 ? limite.max : 1;
-            const porcentagem = Math.min((atual / maxVal) * 100, 100);
-            const emAlerta = atual < limite.min;
+        for (const id of Object.keys(catalogo)) {
+            const nomeCat = catalogo[id];
+            const nomeNorm = normalizeText(nomeCat);
+            const lim = limites[id] || { min: 0, max: 1 };
             
+            const info = analiseEstoque[nomeNorm] || { total: 0, vencido: 0, expirando7d: 0 };
+            const estoqueValido = info.total - info.vencido;
+            const estoqueProjetado = estoqueValido - info.expirando7d;
+            
+            const prog = lim.max > 0 ? (estoqueValido / lim.max) * 100 : 0;
+            
+            let stat = 'normal';
+            
+            // Lógica 1: Caiu abaixo do mínimo
+            if (estoqueValido < lim.min) {
+               stat = 'urgente';
+            } 
+            // Lógica 2: Vai cair abaixo do mínimo por vencimento ou já está próximo na margem 1.5x
+            else if ((estoqueProjetado < lim.min && info.expirando7d > 0) || (estoqueValido <= (lim.min * 1.5))) {
+               stat = 'alerta';
+            }
+            // Lógica 3: Vencidos em estoque
+            else if (info.vencido > 0) {
+                stat = 'vencido';
+            }
+
             inventarioItens.push({
-                nome: limite.nome,
-                atual: atual,
-                max: limite.max,
-                porcentagem: porcentagem,
-                emAlerta: emAlerta
+                id: id,
+                nome: nomeCat,
+                atual: estoqueValido,
+                max: lim.max,
+                min: lim.min,
+                porcentagem: Math.min(100, Math.max(0, prog)),
+                status: stat
             });
         }
+
+        // 4. Ordenar Inventário
+        const pesoStatus = { urgente: 1, alerta: 2, vencido: 3, normal: 4 };
+        inventarioItens.sort((a, b) => {
+            const pesoA = pesoStatus[a.status] || 99;
+            const pesoB = pesoStatus[b.status] || 99;
+            if (pesoA !== pesoB) return pesoA - pesoB;
+            return a.nome.localeCompare(b.nome);
+        });
         
         if (rotativoInterval) clearInterval(rotativoInterval);
-        inventarioIndexAtual = 0;
+        if (inventarioIndexAtual >= inventarioItens.length) inventarioIndexAtual = 0;
         renderizarInventarioPage();
         rotativoInterval = setInterval(avancarInventarioPage, 10000); 
 
@@ -182,25 +294,37 @@ function renderizarInventarioPage() {
     pagina.forEach(item => {
         const nomeCapitalized = item.nome.charAt(0).toUpperCase() + item.nome.slice(1);
         let barClass = 'normal-bg'; 
-        if (item.emAlerta) {
-            barClass = 'alerta-bg'; 
-        } else if (item.porcentagem > 0 && item.porcentagem < 100) {
-            barClass = ''; 
-        }
+        if (item.status === 'vencido') barClass = 'vencido-bg';
+        else if (item.status === 'urgente') barClass = 'urgente-bg';
+        else if (item.status === 'alerta') barClass = 'alerta-bg'; 
+
+        const iconeItem = getIconeSvg(item.status);
+        
+        const pMinimoBruto = item.max > 0 ? (item.min / item.max) * 100 : 0;
+        const porcentagemMinimo = Math.min(100, Math.max(0, pMinimoBruto));
 
         const html = `
             <div class="inventario-item">
                 <div class="item-header">
                     <div class="item-name-container">
                         <span class="item-name">${nomeCapitalized}</span>
-                        ${item.emAlerta ? '<span class="material-symbols-outlined icon-alerta" style="display:inline;">warning</span>' : ''}
+                        ${iconeItem ? `<span class="icon-svg" style="margin-left: 8px;">${iconeItem}</span>` : ''}
                     </div>
                     <div class="item-values">
                         <strong>${item.atual}kg</strong> <span class="item-max">/ ${item.max}kg</span>
                     </div>
                 </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar ${barClass}" style="width: ${item.porcentagem}%"></div>
+                <div class="progress-bar-wrapper">
+                    <div class="progress-bar-container barra-fundo">
+                        <div class="progress-bar ${barClass} barra-preenchida" style="width: ${item.porcentagem}%"></div>
+                        <div class="marcador-minimo" style="left: ${porcentagemMinimo}%"></div>
+                        <div class="area-indicador-text" style="left: 0; width: ${porcentagemMinimo}%">
+                            <span class="texto-indicador">MIN</span>
+                        </div>
+                        <div class="area-indicador-text" style="left: ${porcentagemMinimo}%; right: 0;">
+                            <span class="texto-indicador">IDEAL</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -231,7 +355,7 @@ let rotativoTarefasInterval;
 async function carregarTarefas() {
     if (!isAutenticado) return;
     try {
-        const tarefasSnapshot = await getDocs(collection(db, "tarefas"));
+        const tarefasSnapshot = await getDocsFromServer(collection(db, "tarefas"));
         let tarefasPendentes = [];
         
         tarefasSnapshot.forEach((doc) => {
@@ -253,7 +377,7 @@ async function carregarTarefas() {
         tarefasItens = tarefasPendentes.sort((a, b) => new Date(a.criadoEm) - new Date(b.criadoEm));
 
         if (rotativoTarefasInterval) clearInterval(rotativoTarefasInterval);
-        tarefasIndexAtual = 0;
+        if (tarefasIndexAtual >= tarefasItens.length) tarefasIndexAtual = 0;
         renderizarTarefasPage();
         
         // Iniciar rotação apenas se tiver mais que 3 tarefas
@@ -290,7 +414,7 @@ function renderizarTarefasPage() {
             acaoClass = "bg-urgente"; 
         } else if (tarefa.tipo === 'reposicao' || tarefa.tipo === 'reposição') {
             acaoTexto = "REPOR";
-            acaoClass = "bg-alerta";
+            acaoClass = tarefa.instrucao.includes("Status Urgente") ? "bg-urgente" : "bg-alerta";
             
             // Lógica de cálculo do progresso da reposição (similar ao app React Native)
             const sumLotes = lotesGlobais
@@ -308,10 +432,9 @@ function renderizarTarefasPage() {
                     </div>
                 </div>
             `;
-
         } else if (tarefa.tipo === 'manutencao' || tarefa.tipo === 'manutenção') {
             acaoTexto = "MANUTENÇÃO";
-            acaoClass = "bg-urgente";
+            acaoClass = tarefa.instrucao.includes("Status Urgente") ? "bg-urgente" : "bg-alerta";
         }
 
         const html = `
@@ -365,5 +488,5 @@ function recarregarDados() {
 // Inicia o processo logando primeiro
 realizarLogin();
 
-// Atualiza a cada 10 minutos (600000 ms)
-setInterval(recarregarDados, 600000);
+// Atualiza a cada 30 segundos (30000 ms) para garantir sincronia constante
+setInterval(recarregarDados, 30000);
