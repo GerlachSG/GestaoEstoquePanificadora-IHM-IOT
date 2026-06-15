@@ -6,9 +6,10 @@
     --text-light: #FFFFFF;
     --text-dark: #111111;
     
-    --status-normal: #4CAF50;
-    --status-alerta: #FBC02D;
-    --status-urgente: #1976D2;
+    --status-normal: #D9D9D9;
+    --status-vencido: #FFCC00;
+    --status-alerta: #FF8C00;
+    --status-urgente: #CC0000;
 }
 
 * {
@@ -78,11 +79,24 @@ body {
 .card-header {
     background-color: var(--header-bg); 
     color: var(--text-light);
-    padding: 15px;
-    text-align: center;
-    font-size: 24px;
+    padding: 10px 15px;
     font-weight: bold;
     text-transform: uppercase;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    max-height: 55px;
+}
+
+.card-header h2 {
+    font-size: 18px;
+    margin: 0;
+}
+
+.espaco-icone {
+    margin-left: 10px;
+    display: flex;
+    align-items: center;
 }
 
 .card-content {
@@ -125,6 +139,7 @@ body {
 .status-normal { background-color: var(--status-normal); }
 .status-alerta { background-color: var(--status-alerta); }
 .status-urgente { background-color: var(--status-urgente); }
+.status-vencido { background-color: var(--status-vencido); }
 
 /* --- Estilos do Inventário --- */
 .inventario-item {
@@ -145,10 +160,9 @@ body {
     gap: 8px;
 }
 
-.icon-alerta {
-    color: #d32f2f; 
-    font-size: 30px;
-    display: none; 
+.icon-svg {
+    display: flex;
+    align-items: center;
 }
 
 .item-name {
@@ -169,14 +183,50 @@ body {
     height: 35px;
     background-color: #fff;
     border: 1px solid #000;
+    position: relative;
+    overflow: hidden;
+    display: flex;
 }
 
 .progress-bar {
     height: 100%;
     background-color: var(--status-urgente); 
     transition: width 0.5s ease;
+    border-right: 1px solid #111111;
 }
 
+.marcador-minimo {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #111111;
+    z-index: 10;
+}
+
+.area-indicador-text {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+}
+
+.texto-indicador {
+    font-size: 14px;
+    font-weight: bold;
+    color: #111111;
+    text-transform: uppercase;
+}
+
+.progress-bar.vencido-bg {
+    background-color: var(--status-vencido); 
+}
+.progress-bar.urgente-bg {
+    background-color: var(--status-urgente); 
+}
 .progress-bar.alerta-bg {
     background-color: var(--status-alerta); 
 }
