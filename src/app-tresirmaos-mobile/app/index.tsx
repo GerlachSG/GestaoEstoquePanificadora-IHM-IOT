@@ -1,49 +1,94 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import BotaoIndustrial from '../components/ui/BotaoIndustrial';
 import { Colors } from '../constants/Colors';
 import { useAppStore } from '../store/appStore';
-import { signOut } from 'firebase/auth';
-import { auth, db } from '../services/firebase/firebaseConfig';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { MockCamara, obterStatusGeralInventario } from '../constants/MockData';
+import { logout } from '../services/api/authService';
+import { listarTarefas } from '../services/api/tarefasService';
+
+const IOT_BASE_URL = process.env.EXPO_PUBLIC_IOT_API_URL || '';
+const API_ALERTAS = `${IOT_BASE_URL}/api/alertas`;
 
 export default function HomeScreen() {
   const role = useAppStore((state) => state.role);
-  const setRole = useAppStore((state) => state.setRole);
+  const clearAuthSession = useAppStore((state) => state.clearAuthSession);
   const estoque = useAppStore((state) => state.estoque);
-  const [tarefas, setTarefas] = useState<any[]>([]);
-  const pendenciasGestao = tarefas.length;
+  
+  const [pendenciasGestao, setPendenciasGestao] = useState(0);
+  const [statusCamara, setStatusCamara] = useState<string>('normal');
+
+  // Busca tarefas pendentes via REST
+  const carregarTarefasPendentes = useCallback(async () => {
+    try {
+      const tarefas = await listarTarefas({ status: 'pendente' });
+      setPendenciasGestao(tarefas.length);
+    } catch (error) {
+      console.error('Erro ao buscar tarefas pendentes:', error);
+    }
+  }, []);
 
   useEffect(() => {
-    const q = query(collection(db, 'tarefas'), where('status', '==', 'pendente'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => doc.data());
-      setTarefas(data);
-    });
-    return () => unsubscribe();
+    carregarTarefasPendentes();
+    const intervalId = setInterval(carregarTarefasPendentes, 15000);
+    return () => clearInterval(intervalId);
+  }, [carregarTarefasPendentes]);
+
+  useEffect(() => {
+    const fetchStatusCamara = async () => {
+      if (!IOT_BASE_URL) return;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      try {
+        const response = await fetch(API_ALERTAS, {
+          headers: {
+            'Bypass-Tunnel-Reminder': 'true',
+            'Accept': 'application/json'
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) return;
+
+        const dataAlertas = await response.json();
+
+        let novoStatus = 'normal';
+        if (dataAlertas && dataAlertas.itens && dataAlertas.itens.length > 0) {
+          const temUrgente = dataAlertas.itens.some((alerta: any) => alerta.status === 'urgente');
+          const temAlerta = dataAlertas.itens.some((alerta: any) => alerta.status === 'alerta');
+
+          if (temUrgente) novoStatus = 'urgente';
+          else if (temAlerta) novoStatus = 'alerta';
+        }
+        
+        setStatusCamara(novoStatus);
+      } catch {
+        // Câmara desligada ou inacessível — mantém status normal sem poluir logs ou insistir
+        setStatusCamara('normal');
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    fetchStatusCamara();
   }, []);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    setRole(null);
+    await logout();
+    clearAuthSession();
     router.replace('/login');
   };
 
   const getDashboardColor = () => {
-    let hasVencido = estoque.some(item => item.status === 'vencido');
-    let hasUrgente = estoque.some(item => item.status === 'urgente');
-    let hasAlerta = estoque.some(item => item.status === 'alerta');
+    const hasVencido = estoque.some(item => item.status === 'vencido');
+    const hasUrgente = estoque.some(item => item.status === 'urgente');
+    const hasAlerta = estoque.some(item => item.status === 'alerta');
 
-    const statusCamara = MockCamara.statusGeral;
-    const statusInv = obterStatusGeralInventario();
-
-    const todosStatus = [statusCamara, statusInv];
-
-    if (hasVencido || todosStatus.includes('vencido')) return 'vencido';
-    if (hasUrgente || todosStatus.includes('urgente')) return 'urgente';
-    if (hasAlerta || todosStatus.includes('alerta')) return 'alerta';
+    if (hasVencido || statusCamara === 'vencido') return 'vencido';
+    if (hasUrgente || statusCamara === 'urgente') return 'urgente';
+    if (hasAlerta || statusCamara === 'alerta') return 'alerta';
     
     return 'normal';
   };
@@ -80,6 +125,15 @@ export default function HomeScreen() {
           onPress={() => router.push('/gestao-tarefas')} 
         />
         
+        {role === 'Producao' && (
+          <BotaoIndustrial 
+            titulo="Módulo de Produção" 
+            icone="restaurant-outline" 
+            cor="normal"
+            onPress={() => router.push('/producao')} 
+          />
+        )}
+
         {role === 'Gestor' && (
           <>
             <BotaoIndustrial 
@@ -113,10 +167,4 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.fundoEscuro },
   content: { flex: 1, paddingHorizontal: 24, justifyContent: 'center' },
   footer: { paddingHorizontal: 24, paddingBottom: 20 },
-  tarefasContainer: { marginTop: 24, flex: 1 },
-  tarefasTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  tarefasScroll: { flex: 1 },
-  tarefaCard: { backgroundColor: Colors.fundoCard, padding: 16, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#111' },
-  tarefaItemTitle: { color: Colors.status.normal, fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
-  tarefaItemText: { color: '#FFF', fontSize: 12 }
 });

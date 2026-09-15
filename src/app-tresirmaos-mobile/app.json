@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "gestao-tresirmaos",
+    "slug": "gestao-tresirmaos",
+    "version": "1.0.0",
+    "jsEngine": "jsc",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "gestaotresirmaos",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.appgestao.padariatresirmaos"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-web-browser",
+      "expo-secure-store",
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d30e3298-4051-4de5-8dd1-fead3f31d5c0"
+      }
+    }
+  }
+}

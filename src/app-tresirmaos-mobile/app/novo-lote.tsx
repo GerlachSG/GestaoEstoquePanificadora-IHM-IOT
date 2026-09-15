@@ -19,17 +19,24 @@ import {
 
 import BotaoIndustrial from '../components/ui/BotaoIndustrial';
 import { Colors } from '../constants/Colors';
-import { LotePaylod, registrarEtiquetas } from '../services/firebase/loteService';
-import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
-import { db } from '../services/firebase/firebaseConfig';
+import { LotePayload, registrarEtiquetas } from '../services/api/loteService';
+import { listarCatalogo, salvarProduto } from '../services/api/catalogoService';
 
+// 1. ATUALIZADO: Separamos o ID (para o banco) do Nome (para a impressão)
 interface Etiqueta {
     id: string;
-    item: string;
+    itemId: string; 
+    itemNome: string;
     loteFornecedor: string;
     validade: string;
     idLote: string;
     pesoKg: number;
+}
+
+// Interface auxiliar para o nosso modal de seleção
+interface ProdutoCatalogo {
+    id: string;
+    displayName: string;
 }
 
 function gerarIdLote(): string {
@@ -48,7 +55,8 @@ function formatarDataBR(date: Date): string {
 }
 
 export default function NovoLoteScreen() {
-    const [itemSelecionado, setItemSelecionado] = useState('');
+    // 2. ATUALIZADO: itemSelecionado agora é um objeto
+    const [itemSelecionado, setItemSelecionado] = useState<ProdutoCatalogo | null>(null);
     const [loteFornecedor, setLoteFornecedor] = useState('');
     const [pesoLote, setPesoLote] = useState('');
     const [pesoUnidade, setPesoUnidade] = useState<'KG' | 'g'>('KG');
@@ -59,21 +67,28 @@ export default function NovoLoteScreen() {
     const [etiquetasGeradas, setEtiquetasGeradas] = useState<Etiqueta[]>([]);
     const [modalEtiquetaVisivel, setModalEtiquetaVisivel] = useState(false);
 
-    // Novos estados da Impressão em Lote
     const [modalChecklistVisivel, setModalChecklistVisivel] = useState(false);
     const [canceladosTemporarios, setCanceladosTemporarios] = useState<number[]>([]);
-    const [itensDisponiveis, setItensDisponiveis] = useState<string[]>([]);
+    
+    // 3. ATUALIZADO: Lista de produtos disponíveis guarda o ID e o Nome
+    const [itensDisponiveis, setItensDisponiveis] = useState<ProdutoCatalogo[]>([]);
     const [novoItemNome, setNovoItemNome] = useState('');
     const [modalCadastroItemVisivel, setModalCadastroItemVisivel] = useState(false);
 
     useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'catalogo'), (snapshot) => {
-            const list = snapshot.docs.map(doc => doc.data().nome as string);
-            setItensDisponiveis(list.sort((a, b) => a.localeCompare(b)));
-        }, (error) => {
-            console.log('Firebase onSnapshot (catalogo) erro na leitura (provavelmente deslogado):', error);
-        });
-        return () => unsub();
+        const carregarCatalogo = async () => {
+            try {
+                const catalogo = await listarCatalogo();
+                // Salvamos o objeto completo {id, displayName}
+                const list = catalogo
+                    .map(p => ({ id: p.id, displayName: p.displayName }))
+                    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+                setItensDisponiveis(list);
+            } catch (error) {
+                console.log('Erro ao carregar catálogo:', error);
+            }
+        };
+        carregarCatalogo();
     }, []);
 
     const cadastrarNovoItem = async () => {
@@ -82,14 +97,17 @@ export default function NovoLoteScreen() {
             return;
         }
 
-        const idProd = novoItemNome.trim().toLowerCase().replace(/\s+/g, '_');
-
         try {
-            await setDoc(doc(db, 'catalogo', idProd), { nome: novoItemNome.trim() });
-            
-            // Cria um limite zerado para não bugar o FEFO global posteriormente
-            await setDoc(doc(db, 'limites', idProd), { min: 0, max: 0 });
+            const novoId = novoItemNome.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+            await salvarProduto({ id: novoId, displayName: novoItemNome.trim(), min: 0, max: 0 });
 
+            // Recarrega o catálogo após cadastro
+            const catalogo = await listarCatalogo();
+            const list = catalogo
+                .map(p => ({ id: p.id, displayName: p.displayName }))
+                .sort((a, b) => a.displayName.localeCompare(b.displayName));
+                
+            setItensDisponiveis(list);
             setNovoItemNome('');
             setModalCadastroItemVisivel(false);
             Alert.alert('Sucesso', 'Item adicionado ao catálogo!');
@@ -126,9 +144,11 @@ export default function NovoLoteScreen() {
             pesoConvertido = pesoConvertido / 1000;
         }
 
+        // 4. ATUALIZADO: Guardamos o ID do banco e o Nome de exibição
         const novaEtiqueta: Etiqueta = {
             id: Date.now().toString(),
-            item: itemSelecionado,
+            itemId: itemSelecionado.id, 
+            itemNome: itemSelecionado.displayName,
             loteFornecedor: loteFornecedor.trim(),
             validade: formatarDataBR(dataValidade),
             idLote: gerarIdLote(),
@@ -137,7 +157,7 @@ export default function NovoLoteScreen() {
 
         setEtiquetasGeradas((prev) => [...prev, novaEtiqueta]);
         setQuantidade(1);
-        setLoteFornecedor(''); // Limpar caso gere lote novo
+        setLoteFornecedor(''); 
         setPesoUnidade('KG');
         setModalEtiquetaVisivel(true);
     };
@@ -153,7 +173,7 @@ export default function NovoLoteScreen() {
               font-family: 'Courier New', monospace; 
               margin: 0; 
               padding: 0; 
-              width: 300px; /* Largura aproximada de bobina 80mm */
+              width: 300px; 
             }
             .etiqueta { 
               display: flex; 
@@ -163,7 +183,7 @@ export default function NovoLoteScreen() {
               border-bottom: 2px dashed #000;
               padding-top: 20px;
               padding-bottom: 20px;
-              page-break-after: always; /* Cada etiqueta numa "página" contínua do PDF */
+              page-break-after: always; 
             }
             .titulo { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-align: center; }
             .lote { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
@@ -180,7 +200,7 @@ export default function NovoLoteScreen() {
                 qr.addData(JSON.stringify({
                     lote: ultimaEtiqueta?.idLote,
                     subId: subId,
-                    item: ultimaEtiqueta?.item,
+                    item: ultimaEtiqueta?.itemId, // Scanner lê o ID se precisar fazer baixas automáticas
                     validade: ultimaEtiqueta?.validade
                 }));
                 qr.make();
@@ -188,7 +208,7 @@ export default function NovoLoteScreen() {
 
                 htmlContent += `
           <div class="etiqueta">
-            <div class="titulo">${ultimaEtiqueta?.item}</div>
+            <div class="titulo">${ultimaEtiqueta?.itemNome}</div>
             <div class="lote">LOTE INT: ${ultimaEtiqueta?.idLote}</div>
             ${ultimaEtiqueta?.loteFornecedor ? `<div class="lote">LOTE EXT: ${ultimaEtiqueta?.loteFornecedor}</div>` : ''}
             <div class="lote">VAL: ${ultimaEtiqueta?.validade}</div>
@@ -203,7 +223,7 @@ export default function NovoLoteScreen() {
 
             await Print.printAsync({
                 html: htmlContent,
-                width: 300, // Força a largura do papel para 80mm
+                width: 300, 
             });
 
         } catch (err) {
@@ -212,7 +232,7 @@ export default function NovoLoteScreen() {
     };
 
     const handleAbrirCancelamento = () => {
-        setCanceladosTemporarios([]); // zera
+        setCanceladosTemporarios([]);
         setModalEtiquetaVisivel(false);
         setModalChecklistVisivel(true);
     };
@@ -224,26 +244,25 @@ export default function NovoLoteScreen() {
     };
 
     const handleConfirmarCancelamento = () => {
-        // Logica faria o cancelamento dos IDs selecionados no backend
         Alert.alert('Simulação', `${canceladosTemporarios.length} etiqueta(s) cancelada(s) com sucesso.`);
         setModalChecklistVisivel(false);
-        setModalEtiquetaVisivel(true); // volta para a visualização principal do lote
+        setModalEtiquetaVisivel(true);
     };
 
     const handleFinalizar = async () => {
         if (ultimaEtiqueta) {
             try {
-                const payload: LotePaylod[] = [];
+                const payload: LotePayload[] = [];
                 for (let i = 0; i < quantidade; i++) {
                     if (!canceladosTemporarios.includes(i)) {
                         const subId = `${ultimaEtiqueta.idLote}-${String(i + 1).padStart(2, '0')}`;
                         payload.push({
                             id: subId,
-                            item: ultimaEtiqueta.item,
+                            item: ultimaEtiqueta.itemId,
                             loteFornecedor: ultimaEtiqueta.loteFornecedor,
                             validade: ultimaEtiqueta.validade,
                             pesoKg: ultimaEtiqueta.pesoKg,
-                            masterLote: ultimaEtiqueta.idLote,
+                            LotePrincipal: ultimaEtiqueta.idLote,
                             status: 'ativo',
                             dataCriacao: new Date().toISOString()
                         });
@@ -252,15 +271,16 @@ export default function NovoLoteScreen() {
 
                 await registrarEtiquetas(payload);
                 Alert.alert('Sucesso', 'Lote finalizado e sincronizado na Nuvem.');
-            } catch (error) {
-                Alert.alert('Erro', 'Houve uma falha ao comunicar com o servidor da fábrica.');
+            } catch (error: any) {
+                console.error("Erro no registrarEtiquetas:", error);
+                Alert.alert('Erro', 'Houve uma falha ao comunicar com o servidor da fábrica: ' + (error.message || JSON.stringify(error)));
                 return;
             }
         }
 
         setModalEtiquetaVisivel(false);
         setModalChecklistVisivel(false);
-        setItemSelecionado('');
+        setItemSelecionado(null);
         setDataValidade(null);
         setEtiquetasGeradas([]);
         setQuantidade(1);
@@ -284,8 +304,9 @@ export default function NovoLoteScreen() {
                         style={styles.valor}
                         onPress={() => setModalItemVisivel(true)}
                     >
+                        {/* 6. ATUALIZADO: Mostra o Nome do Item selecionado */}
                         <Text style={styles.valorTexto}>
-                            {itemSelecionado || 'SELECIONAR'}
+                            {itemSelecionado ? itemSelecionado.displayName : 'SELECIONAR'}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -415,16 +436,17 @@ export default function NovoLoteScreen() {
                         <Text style={styles.modalTitulo}>Selecione o Item</Text>
                         <FlatList
                             data={itensDisponiveis}
-                            keyExtractor={(item) => item}
+                            keyExtractor={(item) => item.id}
                             renderItem={({ item }) => (
                                 <TouchableOpacity
                                     style={styles.modalItem}
                                     onPress={() => {
+                                        // 7. ATUALIZADO: Salva o objeto inteiro
                                         setItemSelecionado(item);
                                         setModalItemVisivel(false);
                                     }}
                                 >
-                                    <Text style={styles.modalItemTexto}>{item}</Text>
+                                    <Text style={styles.modalItemTexto}>{item.displayName}</Text>
                                 </TouchableOpacity>
                             )}
                         />
