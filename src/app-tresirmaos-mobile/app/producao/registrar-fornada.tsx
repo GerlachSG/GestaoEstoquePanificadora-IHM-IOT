@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, Modal, TouchableOpacity, FlatList, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Modal, TouchableOpacity, FlatList, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '../../constants/Colors';
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
 import { useAppStore } from '../../store/appStore';
 import { listarProdutos, ProdutoFinal, CATEGORIAS_PADRAO } from '../../services/api/produtosService';
 import { registrarFornada } from '../../services/api/producaoService';
+import { registrarEtiquetas } from '../../services/api/loteService';
 
 export default function RegistrarFornadaScreen() {
   const router = useRouter();
@@ -21,6 +23,11 @@ export default function RegistrarFornadaScreen() {
   const [modalCategoriaVisivel, setModalCategoriaVisivel] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+
+  // Date/Time Picker para validade
+  const [dataValidade, setDataValidade] = useState(new Date(Date.now() + 48 * 60 * 60 * 1000));
+  const [mostrarDatePicker, setMostrarDatePicker] = useState(false);
+  const [mostrarTimePicker, setMostrarTimePicker] = useState(false);
 
   useEffect(() => {
     const carregarProdutos = async () => {
@@ -43,6 +50,37 @@ export default function RegistrarFornadaScreen() {
     return produtos.filter((p) => p.categoria === categoriaSelecionada);
   }, [produtos, categoriaSelecionada]);
 
+  const formatarData = (d: Date) => {
+    const dia = String(d.getDate()).padStart(2, '0');
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const ano = d.getFullYear();
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const formatarHora = (d: Date) => {
+    const hora = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${hora}:${min}`;
+  };
+
+  const handleDateChange = (_event: any, selectedDate?: Date) => {
+    setMostrarDatePicker(false);
+    if (selectedDate) {
+      const novaData = new Date(dataValidade);
+      novaData.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      setDataValidade(novaData);
+    }
+  };
+
+  const handleTimeChange = (_event: any, selectedTime?: Date) => {
+    setMostrarTimePicker(false);
+    if (selectedTime) {
+      const novaData = new Date(dataValidade);
+      novaData.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+      setDataValidade(novaData);
+    }
+  };
+
   const handleSalvarFornada = async () => {
     if (!turnoAtivo) {
       Alert.alert('Erro', 'Nenhum turno aberto no momento.');
@@ -58,9 +96,17 @@ export default function RegistrarFornadaScreen() {
       return;
     }
 
+    if (dataValidade.getTime() <= Date.now()) {
+      Alert.alert('Atenção', 'A data de validade precisa ser no futuro.');
+      return;
+    }
+
     setSalvando(true);
     try {
       const email = usuarioEmail || 'operador@tresirmaos.com';
+      const agora = new Date();
+
+      // 1. Registra o evento de produção
       await registrarFornada({
         turnoId: turnoAtivo.id,
         item: produtoSelecionado.id,
@@ -70,9 +116,30 @@ export default function RegistrarFornadaScreen() {
         operadorEmail: email,
       });
 
+      // 2. Cria o lote virtual (produto pronto na vitrine)
+      const loteId = `FORNADA-${produtoSelecionado.id}-${Date.now().toString().slice(-6)}`;
+      await registrarEtiquetas([{
+        id: loteId,
+        item: produtoSelecionado.id,
+        validade: dataValidade.toISOString(),
+        pesoKg: qtdNum,
+        LotePrincipal: loteId,
+        status: 'ativo',
+        dataCriacao: agora.toISOString(),
+        // Campos extras para a vitrine
+        ...({
+          origem: 'interno',
+          itemNome: produtoSelecionado.nome,
+          categoria: produtoSelecionado.categoria,
+          quantidadeOriginal: qtdNum,
+          turnoId: turnoAtivo.id,
+          unidade,
+        } as any),
+      }]);
+
       Alert.alert(
         'Fornada Registrada',
-        `${qtdNum} ${unidade.toUpperCase()} de ${produtoSelecionado.nome} registrados no turno!`,
+        `${qtdNum} ${unidade.toUpperCase()} de ${produtoSelecionado.nome} registrados!\nValidade: ${formatarData(dataValidade)} às ${formatarHora(dataValidade)}`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
@@ -87,9 +154,6 @@ export default function RegistrarFornadaScreen() {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#FFFFFF" />
-        <Text style={{ color: '#FFFFFF', marginTop: 16, fontWeight: 'bold' }}>
-          Carregando produtos...
-        </Text>
       </View>
     );
   }
@@ -153,6 +217,24 @@ export default function RegistrarFornadaScreen() {
                 </View>
               </View>
 
+              {/* VALIDADE - DATA */}
+              <Text style={styles.labelCampo}>VALIDADE - DATA:</Text>
+              <TouchableOpacity
+                style={styles.seletorBotao}
+                onPress={() => setMostrarDatePicker(true)}
+              >
+                <Text style={styles.seletorBotaoTexto}>{formatarData(dataValidade)}</Text>
+              </TouchableOpacity>
+
+              {/* VALIDADE - HORA */}
+              <Text style={styles.labelCampo}>VALIDADE - HORA:</Text>
+              <TouchableOpacity
+                style={styles.seletorBotao}
+                onPress={() => setMostrarTimePicker(true)}
+              >
+                <Text style={styles.seletorBotaoTexto}>{formatarHora(dataValidade)}</Text>
+              </TouchableOpacity>
+
               {/* BOTÃO SALVAR */}
               <View style={styles.botaoWrapper}>
                 <BotaoIndustrial
@@ -166,6 +248,28 @@ export default function RegistrarFornadaScreen() {
             </View>
           </View>
         </ScrollView>
+
+        {/* Date Picker Nativo */}
+        {mostrarDatePicker && (
+          <DateTimePicker
+            value={dataValidade}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleDateChange}
+            minimumDate={new Date()}
+          />
+        )}
+
+        {/* Time Picker Nativo */}
+        {mostrarTimePicker && (
+          <DateTimePicker
+            value={dataValidade}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleTimeChange}
+            is24Hour={true}
+          />
+        )}
 
         {/* MODAL SELETOR DE PRODUTOS */}
         <Modal visible={modalSeletorVisivel} transparent animationType="fade">

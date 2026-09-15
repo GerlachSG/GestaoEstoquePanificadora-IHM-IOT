@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import BotaoIndustrial from '../components/ui/BotaoIndustrial';
 import { Colors } from '../constants/Colors';
-import { useAppStore } from '../store/appStore';
 import { logout } from '../services/api/authService';
 import { listarTarefas } from '../services/api/tarefasService';
+import { useAppStore } from '../store/appStore';
 
 const IOT_BASE_URL = process.env.EXPO_PUBLIC_IOT_API_URL || '';
 const API_ALERTAS = `${IOT_BASE_URL}/api/alertas`;
@@ -14,7 +14,7 @@ export default function HomeScreen() {
   const role = useAppStore((state) => state.role);
   const clearAuthSession = useAppStore((state) => state.clearAuthSession);
   const estoque = useAppStore((state) => state.estoque);
-  
+
   const [pendenciasGestao, setPendenciasGestao] = useState(0);
   const [statusCamara, setStatusCamara] = useState<string>('normal');
 
@@ -62,7 +62,7 @@ export default function HomeScreen() {
           if (temUrgente) novoStatus = 'urgente';
           else if (temAlerta) novoStatus = 'alerta';
         }
-        
+
         setStatusCamara(novoStatus);
       } catch {
         // Câmara desligada ou inacessível — mantém status normal sem poluir logs ou insistir
@@ -89,74 +89,74 @@ export default function HomeScreen() {
     if (hasVencido || statusCamara === 'vencido') return 'vencido';
     if (hasUrgente || statusCamara === 'urgente') return 'urgente';
     if (hasAlerta || statusCamara === 'alerta') return 'alerta';
-    
+
     return 'normal';
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <BotaoIndustrial 
-          titulo="Novo Lote" 
-          icone="add" 
+        <BotaoIndustrial
+          titulo="Novo Lote"
+          icone="add"
           cor="branco"
-          onPress={() => router.push('/novo-lote')} 
-        />
-        
-        <BotaoIndustrial 
-          titulo="Remover Item" 
-          icone="trash-outline" 
-          cor="branco"
-          onPress={() => router.push('/remover-lote/scanner')} 
-        />
-        
-        <BotaoIndustrial 
-          titulo="Dashboard" 
-          icone={getDashboardColor() === 'normal' ? 'analytics-outline' : undefined} 
-          cor={getDashboardColor()}
-          onPress={() => router.push('/dashboard')} 
+          onPress={() => router.push('/novo-lote')}
         />
 
-        <BotaoIndustrial 
-          titulo={pendenciasGestao > 0 ? `Gestão de Tarefas (${pendenciasGestao})` : 'Gestão de Tarefas'} 
-          icone="clipboard-outline" 
+        <BotaoIndustrial
+          titulo="Remover Item"
+          icone="trash-outline"
+          cor="branco"
+          onPress={() => router.push('../remover-item')}
+        />
+
+        <BotaoIndustrial
+          titulo="Dashboard"
+          icone={getDashboardColor() === 'normal' ? 'analytics-outline' : undefined}
+          cor={getDashboardColor()}
+          onPress={() => router.push('/dashboard')}
+        />
+
+        <BotaoIndustrial
+          titulo={pendenciasGestao > 0 ? `Gestão de Tarefas (${pendenciasGestao})` : 'Gestão de Tarefas'}
+          icone="clipboard-outline"
           cor={pendenciasGestao > 0 ? 'alerta' : 'branco'}
           semSvg
-          onPress={() => router.push('/gestao-tarefas')} 
+          onPress={() => router.push('/gestao-tarefas')}
         />
-        
+
         {role === 'Producao' && (
-          <BotaoIndustrial 
-            titulo="Módulo de Produção" 
-            icone="restaurant-outline" 
+          <BotaoIndustrial
+            titulo="Módulo de Produção"
+            icone="restaurant-outline"
             cor="normal"
-            onPress={() => router.push('/producao')} 
+            onPress={() => router.push('/producao')}
           />
         )}
 
         {role === 'Gestor' && (
           <>
-            <BotaoIndustrial 
-              titulo="Planejamento IA" 
-              icone="sparkles" 
+            <BotaoIndustrial
+              titulo="Planejamento IA"
+              icone="sparkles"
               cor="branco"
-              onPress={() => router.push('/planejamento-ia')} 
+              onPress={() => router.push('/planejamento-ia')}
             />
-            <BotaoIndustrial 
-              titulo="Configurações" 
-              icone="settings-outline" 
+            <BotaoIndustrial
+              titulo="Painel Gerencial"
+              icone="settings-outline"
               cor="branco"
-              onPress={() => router.push('/configuracoes')} 
+              onPress={() => router.push('/configuracoes')}
             />
           </>
         )}
       </View>
 
       <View style={styles.footer}>
-        <BotaoIndustrial 
-          titulo="Desconectar" 
+        <BotaoIndustrial
+          titulo="Desconectar"
           cor="branco"
-          onPress={handleLogout} 
+          onPress={handleLogout}
         />
       </View>
     </View>

@@ -112,7 +112,7 @@ export default function AppLayout() {
       >
         <Stack.Screen name="index" options={{ title: 'Estoque Panificadora', headerShown: true, headerLeft: () => null }} />
         <Stack.Screen name="login" options={{ title: 'Login', headerShown: false }} />
-        <Stack.Screen name="configuracoes/index" options={{ title: 'Configurações' }} />
+        <Stack.Screen name="configuracoes/index" options={{ title: 'Painel Gerencial' }} />
         <Stack.Screen name="configuracoes/produtos" options={{ title: 'Produtos e Limites' }} />
         <Stack.Screen name="novo-lote" options={{ title: 'Novo Lote' }} />
         <Stack.Screen name="planejamento-ia" options={{ title: 'Planejamento IA' }} />
@@ -132,6 +132,10 @@ export default function AppLayout() {
         <Stack.Screen name="producao/registrar-fornada" options={{ title: 'Registrar Fornada' }} />
         <Stack.Screen name="producao/registrar-perda" options={{ title: 'Registrar Perda' }} />
         <Stack.Screen name="producao/fechar-turno" options={{ title: 'Fechamento de Turno' }} />
+        <Stack.Screen name="remover-item/index" options={{ title: 'Remover Item' }} />
+        <Stack.Screen name="remover-item/vitrine" options={{ title: 'Vitrine' }} />
+        <Stack.Screen name="remover-item/acoes" options={{ title: 'Ações' }} />
+        <Stack.Screen name="relatorios/exportar" options={{ title: 'Exportar Relatório' }} />
       </Stack>
     </>
   );

@@ -8,7 +8,7 @@ export default function ConfiguracoesMenu() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-            <Text style={{opacity: 0, height: 40}}>CONFIGURAÇÕES</Text>
+            <Text style={{opacity: 0, height: 40}}>PAINEL GERENCIAL</Text>
       </View>
 
       <View style={styles.content}>
@@ -17,6 +17,13 @@ export default function ConfiguracoesMenu() {
           icone="cube-outline"
           cor="branco"
           onPress={() => router.push('/configuracoes/produtos')}
+        />
+
+        <BotaoIndustrial
+          titulo="EXPORTAR RELATÓRIO SANITÁRIO"
+          icone="document-text-outline"
+          cor="branco"
+          onPress={() => router.push('/relatorios/exportar')}
         />
       </View>
     </View>
