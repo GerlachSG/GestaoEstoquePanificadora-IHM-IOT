@@ -105,46 +105,57 @@ export default function ProducaoHomeScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         {!turnoAtivo ? (
           <View style={styles.turnoFechadoContainer}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeTexto}>TURNO FECHADO</Text>
-            </View>
             <BotaoIndustrial
               titulo="INICIAR TURNO"
               icone="play"
-              cor="branco"
               carregando={iniciando}
               onPress={handleIniciarTurno}
             />
           </View>
         ) : (
           <View style={styles.painelContainer}>
-            <View style={styles.headerTurno}>
-              <Text style={styles.headerLabel}>TURNO: <Text style={styles.headerValor}>{turnoAtivo.id}</Text></Text>
-              <Text style={styles.headerLabel}>DURAÇÃO: <Text style={styles.headerValor}>{tempoDecorrido}</Text></Text>
+            <View style={styles.infoRow}>
+              <View style={styles.infoCard}>
+                <View style={styles.infoCardHeader}>
+                  <Text style={styles.infoCardHeaderTexto}>TURNO</Text>
+                </View>
+                <View style={styles.infoCardBody}>
+                  <Text style={styles.infoCardValor} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                    {turnoAtivo.id}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.infoCard}>
+                <View style={styles.infoCardHeader}>
+                  <Text style={styles.infoCardHeaderTexto}>DURAÇÃO</Text>
+                </View>
+                <View style={styles.infoCardBody}>
+                  <Text style={styles.infoCardValor} numberOfLines={1} adjustsFontSizeToFit>
+                    {tempoDecorrido}
+                  </Text>
+                </View>
+              </View>
             </View>
 
             <BotaoIndustrial
               titulo="Retirar Ingrediente"
               icone="cube-outline"
-              cor="branco"
               onPress={() => router.push('/producao/retirar-ingrediente')}
             />
             <BotaoIndustrial
               titulo="Registrar Fornada"
               icone="restaurant-outline"
-              cor="branco"
               onPress={() => router.push('/producao/registrar-fornada')}
             />
             <BotaoIndustrial
               titulo="Registrar Perda"
               icone="warning-outline"
-              cor="branco"
               onPress={() => router.push('/producao/registrar-perda')}
             />
             <BotaoIndustrial
               titulo="Fechar Turno"
               icone="stop-circle-outline"
-              cor="branco"
               onPress={() => router.push('/producao/fechar-turno')}
             />
           </View>
@@ -153,9 +164,13 @@ export default function ProducaoHomeScreen() {
 
       <View style={styles.footer}>
         <BotaoIndustrial
+          titulo="Menu Principal"
+          icone="home-outline"
+          onPress={() => router.replace('/')}
+        />
+        <BotaoIndustrial
           titulo="Desconectar"
           icone="log-out-outline"
-          cor="branco"
           onPress={handleDesconectar}
         />
       </View>
@@ -164,14 +179,24 @@ export default function ProducaoHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
+  container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   turnoFechadoContainer: { width: '100%', alignItems: 'center' },
-  badge: { backgroundColor: '#DFE4F2', paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: '#111111', marginBottom: 24 },
-  badgeTexto: { fontSize: 14, fontWeight: 'bold', color: '#111111' },
   painelContainer: { width: '100%' },
-  headerTurno: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#111111', padding: 14, marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerLabel: { fontSize: 13, fontWeight: 'bold', color: '#555555' },
-  headerValor: { color: '#111111' },
+  infoRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  infoCard: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  infoCardHeader: { backgroundColor: Colors.header, paddingVertical: 10, alignItems: 'center' },
+  infoCardHeaderTexto: { color: Colors.text.light, fontFamily: 'Inter_700Bold', fontSize: 14 },
+  infoCardBody: { backgroundColor: Colors.status.normal, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center' },
+  infoCardValor: { color: Colors.text.dark, fontFamily: 'Inter_700Bold', fontSize: 18 },
   footer: { paddingHorizontal: 24, paddingBottom: 24 },
 });

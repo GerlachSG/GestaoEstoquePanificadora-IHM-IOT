@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { IconeAlertaSvg, IconeUrgenteSvg, IconeVencidoSvg } from '../../components/ui/IconesBase';
 import { fetchInventario, InventarioItem } from '../../services/api/inventarioService';
 import { useAppStore } from '../../store/appStore';
 
 export default function InventarioScreen() {
-  const [busca, setBusca] = useState('');
   const inventarioStore = useAppStore((state) => state.inventario);
   const setInventario = useAppStore((state) => state.setInventario);
 
@@ -37,15 +36,7 @@ export default function InventarioScreen() {
   }, [carregarInventario]);
 
   const itensFiltradosEOrdenados = useMemo(() => {
-    let filtrados = inventarioStore;
-
-    if (busca.trim() !== '') {
-      filtrados = filtrados.filter((item) =>
-        item.nome.toLowerCase().includes(busca.toLowerCase())
-      );
-    }
-
-    return [...filtrados].sort((a, b) => {
+    return [...inventarioStore].sort((a, b) => {
       const peso: Record<string, number> = { vencido: 1, urgente: 2, alerta: 3, normal: 4 };
 
       const pesoA = peso[a.status] || 99;
@@ -57,7 +48,7 @@ export default function InventarioScreen() {
 
       return a.nome.localeCompare(b.nome);
     });
-  }, [busca, inventarioStore]);
+  }, [inventarioStore]);
 
   const getStatusMaisCritico = () => {
     if (inventarioStore.some((item) => item.status === 'vencido')) return 'vencido';
@@ -80,9 +71,9 @@ export default function InventarioScreen() {
   }
 
   const renderItem = (item: InventarioItem) => {
-    const statusReal = item.status as keyof typeof Colors.status;
+    const statusReal = (item.status === 'vencido' ? 'urgente' : item.status) as keyof typeof Colors.status;
     const corBarra = Colors.status[statusReal] || '#111111';
-    const exibirAlerta = statusReal === 'vencido' || statusReal === 'urgente' || statusReal === 'alerta';
+    const exibirAlerta = item.status === 'vencido' || item.status === 'urgente' || item.status === 'alerta';
 
     const atual = Number(item.quantidadeAtualKg) || 0;
     const minimo = Number(item.capacidadeMinKg) || 0;
@@ -99,9 +90,9 @@ export default function InventarioScreen() {
             <Text style={styles.itemNome}>{item.nome}</Text>
             {exibirAlerta && (
               <View style={styles.espacoIconeItem}>
-                {statusReal === 'vencido' && <IconeVencidoSvg width={24} height={24} />}
-                {statusReal === 'urgente' && <IconeUrgenteSvg width={24} height={24} />}
-                {statusReal === 'alerta' && <IconeAlertaSvg width={24} height={24} />}
+                {item.status === 'vencido' && <IconeVencidoSvg width={24} height={24} />}
+                {item.status === 'urgente' && <IconeUrgenteSvg width={24} height={24} />}
+                {item.status === 'alerta' && <IconeAlertaSvg width={24} height={24} />}
               </View>
             )}
           </View>
@@ -138,22 +129,14 @@ export default function InventarioScreen() {
     <View style={styles.container}>
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardHeaderTexto}>Inventário de Matéria-Prima</Text>
+          <Text style={styles.cardHeaderTexto} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            INVENTÁRIO DE MATÉRIA-PRIMA
+          </Text>
           <View style={styles.espacoIconeTop}>
             {statusTopo === 'vencido' && <IconeVencidoSvg width={24} height={24} />}
             {statusTopo === 'urgente' && <IconeUrgenteSvg width={24} height={24} />}
             {statusTopo === 'alerta' && <IconeAlertaSvg width={24} height={24} />}
           </View>
-        </View>
-
-        <View style={styles.buscaContainer}>
-          <TextInput
-            style={styles.inputBusca}
-            placeholder="BUSCAR ITEM..."
-            placeholderTextColor="#768AA4"
-            value={busca}
-            onChangeText={setBusca}
-          />
         </View>
 
         <ScrollView
@@ -184,63 +167,56 @@ export default function InventarioScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.fundoEscuro,
-    padding: 16,
+    backgroundColor: Colors.background,
+    padding: 8,
   },
   card: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: Colors.fundoCard,
+    backgroundColor: Colors.background,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   cardHeader: {
     backgroundColor: Colors.header,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardHeaderTexto: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   espacoIconeTop: {
     marginLeft: 8,
-  },
-  buscaContainer: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-  },
-  inputBusca: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: '#DFE4F2',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111111',
+    flexShrink: 0,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: Colors.fundoCard,
+    backgroundColor: Colors.background,
   },
   listaContainer: {
-    padding: 16,
+    paddingHorizontal: 4,
+    paddingBottom: 20,
   },
   itemContainer: {
-    marginBottom: 24,
+    marginBottom: 12,
+    backgroundColor: Colors.surface,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    elevation: 2,
   },
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   itemNomeContainer: {
     flexDirection: 'row',
@@ -251,7 +227,7 @@ const styles = StyleSheet.create({
   itemNome: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#111111',
+    color: Colors.text.dark,
     flexShrink: 1,
   },
   espacoIconeItem: {
@@ -264,35 +240,33 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   valorAtual: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#111111',
+    color: Colors.text.dark,
   },
   valorMaximo: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#111111',
+    color: '#64748B',
   },
   barraFundo: {
-    height: 24,
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: '#FFFFFF',
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
     flexDirection: 'row',
     position: 'relative',
     overflow: 'hidden',
   },
   barraPreenchida: {
     height: '100%',
-    borderRightWidth: 1,
-    borderRightColor: '#111111',
+    borderRadius: 8,
   },
   marcadorMinimo: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     width: 2,
-    backgroundColor: '#111111',
+    backgroundColor: '#475569',
     zIndex: 10,
   },
   areaIndicadorText: {
@@ -304,14 +278,14 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   textoIndicador: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
-    color: '#111111',
+    color: '#111111', // SEMPRE PRETO (para contrastar com cinza, vermelho, amarelo e laranja)
     textTransform: 'uppercase',
   },
   textoVazio: {
     textAlign: 'center',
-    color: '#111111',
+    color: '#FFFFFF',
     marginTop: 32,
     fontSize: 16,
     fontWeight: 'bold',

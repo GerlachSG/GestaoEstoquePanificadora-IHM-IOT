@@ -46,30 +46,62 @@ function decodeJwtPayload(token: string): Record<string, any> {
 }
 
 function extractRole(claims: Record<string, any>): 'Gestor' | 'Operador' | 'Producao' {
-  // 1. Tenta ler do array "roles" (Padrão oficial do Entra ID que vimos no console.log)
-  if (claims.roles && Array.isArray(claims.roles) && claims.roles.length > 0) {
-    const rolePrincipal = String(claims.roles[0]).toLowerCase(); 
-    
-    if (rolePrincipal === 'gestor') return 'Gestor';
-    if (rolePrincipal === 'operador') return 'Operador';
+  // 1. Tenta ler do array ou string de "roles" / "groups"
+  const rawRoles: any[] = [];
+  if (Array.isArray(claims.roles)) rawRoles.push(...claims.roles);
+  else if (claims.roles) rawRoles.push(claims.roles);
+  if (Array.isArray(claims.role)) rawRoles.push(...claims.role);
+  else if (claims.role) rawRoles.push(claims.role);
+  if (Array.isArray(claims.groups)) rawRoles.push(...claims.groups);
+
+  const rolesNormalizadas = rawRoles.map((r) => String(r).toLowerCase());
+
+  if (rolesNormalizadas.some((r) => r.includes('gestor') || r.includes('admin') || r.includes('gerente') || r.includes('gestao'))) {
+    return 'Gestor';
+  }
+  if (rolesNormalizadas.some((r) => r.includes('operador') || r.includes('balcao') || r.includes('vendas'))) {
+    return 'Operador';
+  }
+  if (rolesNormalizadas.some((r) => r.includes('producao') || r.includes('padeiro') || r.includes('forneiro'))) {
+    return 'Producao';
   }
 
-  // 2. Tenta ler dos claims customizados (Caso o Azure mande como texto solto)
+  // 2. Tenta ler dos claims customizados de cargo / departamento
   const cargo =
     claims['extension_Cargo'] ||
     claims['Cargo'] ||
     claims['cargo'] ||
     claims['jobTitle'] ||
-    claims['extension_cargo'];
+    claims['extension_cargo'] ||
+    claims['department'] ||
+    claims['departamento'];
 
-  // Normalizamos o texto para evitar problemas com maiúsculas/minúsculas e acentos
   const cargoNormalizado = String(cargo || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-  if (cargoNormalizado === 'gestor') return 'Gestor';
-  if (cargoNormalizado === 'operador') return 'Operador';
-  
-  // A Regra de Ouro: Se não achou 'gestor' nem 'operador', o cara é da 'Producao'!
-  return 'Producao';
+  if (cargoNormalizado.includes('gestor') || cargoNormalizado.includes('admin') || cargoNormalizado.includes('gerente') || cargoNormalizado.includes('gestao')) {
+    return 'Gestor';
+  }
+  if (cargoNormalizado.includes('operador') || cargoNormalizado.includes('balcao') || cargoNormalizado.includes('vendas')) {
+    return 'Operador';
+  }
+  if (cargoNormalizado.includes('producao') || cargoNormalizado.includes('padeiro') || cargoNormalizado.includes('forneiro')) {
+    return 'Producao';
+  }
+
+  // 3. Tenta identificar pelo e-mail ou nome de usuário
+  const emailIdentificador = String(extractEmail(claims)).toLowerCase();
+  if (emailIdentificador.includes('gestor') || emailIdentificador.includes('gerente') || emailIdentificador.includes('admin')) {
+    return 'Gestor';
+  }
+  if (emailIdentificador.includes('operador')) {
+    return 'Operador';
+  }
+  if (emailIdentificador.includes('padeiro') || emailIdentificador.includes('producao')) {
+    return 'Producao';
+  }
+
+  // Se não foi explicitamente atribuído como padeiro/operador, o padrão no painel é Gestor para liberar o acesso gerencial
+  return 'Gestor';
 }
 
 function extractEmail(claims: Record<string, any>): string {

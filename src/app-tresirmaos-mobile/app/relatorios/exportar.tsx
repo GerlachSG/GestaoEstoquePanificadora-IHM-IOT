@@ -1,36 +1,83 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
+import ActionCard from '../../components/ui/ActionCard';
+import SeletorModal from '../../components/ui/SeletorModal';
 import { listarMovimentacoes, Movimentacao } from '../../services/api/movimentacoesService';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
+// Guarda sanitária: histórico consultável de até 6 meses
+const MESES_GUARDA = 6;
+const NOMES_MESES = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+
+type TipoFiltro = 'todos' | 'descarte_vencimento' | 'perda_quebra';
+
+const OPCOES_TIPO: { valor: TipoFiltro; rotulo: string }[] = [
+  { valor: 'todos', rotulo: 'AMBOS' },
+  { valor: 'descarte_vencimento', rotulo: 'VENCIMENTOS' },
+  { valor: 'perda_quebra', rotulo: 'PERDAS / QUEBRAS' },
+];
+
+// Retorna a chave "YYYY-MM" de N meses atrás
+const getAnoMes = (mesesAtras: number) => {
+  const data = new Date();
+  data.setDate(1);
+  data.setMonth(data.getMonth() - mesesAtras);
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const rotuloAnoMes = (anoMes: string) => {
+  const [ano, mes] = anoMes.split('-');
+  return `${NOMES_MESES[Number(mes) - 1]} / ${ano}`;
+};
+
+// Períodos: cada um dos últimos 6 meses ou intervalos acumulados
+const OPCOES_PERIODO = [
+  ...Array.from({ length: MESES_GUARDA }, (_, i) => ({
+    valor: `m${i}`,
+    rotulo: rotuloAnoMes(getAnoMes(i)),
+    descricao: i === 0 ? 'Mês atual' : i === 1 ? 'Mês anterior' : undefined,
+    meses: [getAnoMes(i)],
+  })),
+  {
+    valor: 'u3',
+    rotulo: 'ÚLTIMOS 3 MESES',
+    descricao: `${rotuloAnoMes(getAnoMes(2))} até hoje`,
+    meses: [0, 1, 2].map(getAnoMes),
+  },
+  {
+    valor: 'u6',
+    rotulo: 'ÚLTIMOS 6 MESES',
+    descricao: `${rotuloAnoMes(getAnoMes(5))} até hoje (limite de guarda)`,
+    meses: Array.from({ length: MESES_GUARDA }, (_, i) => getAnoMes(i)),
+  },
+];
+
 export default function ExportarRelatorioScreen() {
   const [carregando, setCarregando] = useState(false);
   const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>([]);
-  const [mesFiltro, setMesFiltro] = useState<'atual' | 'anterior'>('atual');
-  const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'descarte_vencimento' | 'perda_quebra'>('todos');
+  const [periodo, setPeriodo] = useState<string>('m0');
+  const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>('todos');
+  const [modalPeriodoVisivel, setModalPeriodoVisivel] = useState(false);
+  const [modalTipoVisivel, setModalTipoVisivel] = useState(false);
 
-  const getAnoMes = (tipo: 'atual' | 'anterior') => {
-    const data = new Date();
-    if (tipo === 'anterior') {
-      data.setMonth(data.getMonth() - 1);
-    }
-    const ano = data.getFullYear();
-    const mes = String(data.getMonth() + 1).padStart(2, '0');
-    return `${ano}-${mes}`;
-  };
+  const periodoAtual = useMemo(
+    () => OPCOES_PERIODO.find((p) => p.valor === periodo) || OPCOES_PERIODO[0],
+    [periodo]
+  );
 
   useEffect(() => {
     carregarDados();
-  }, [mesFiltro]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo]);
 
   const carregarDados = async () => {
     setCarregando(true);
     try {
-      const anoMes = getAnoMes(mesFiltro);
-      const dados = await listarMovimentacoes(anoMes);
+      const resultados = await Promise.all(periodoAtual.meses.map((anoMes) => listarMovimentacoes(anoMes)));
+      const dados = resultados.flat();
       // Filtra apenas saídas sanitárias e perdas
       const descartesEPerdas = dados.filter(m => m.tipoMov === 'descarte_vencimento' || m.tipoMov === 'perda_quebra');
       setMovimentacoes(descartesEPerdas);
@@ -97,7 +144,7 @@ export default function ExportarRelatorioScreen() {
             <h1>Relatório de Rastreabilidade e Descarte Sanitário</h1>
             <div class="header-info">
               <strong>Empresa:</strong> Panificadora Três Irmãos<br/>
-              <strong>Mês de Referência:</strong> ${getAnoMes(mesFiltro)}<br/>
+              <strong>Período de Referência:</strong> ${periodoAtual.rotulo}<br/>
               <strong>Data de Emissão:</strong> ${formatarData(new Date().toISOString())}
             </div>
             <table>
@@ -142,131 +189,56 @@ export default function ExportarRelatorioScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.cardHeader}>FILTROS DO RELATÓRIO</Text>
-          
-          <View style={styles.cardBody}>
-            <Text style={styles.labelCampo}>MÊS DE REFERÊNCIA:</Text>
-            <View style={styles.botoesLinha}>
-              <TouchableOpacity 
-                style={[styles.botaoFiltro, mesFiltro === 'atual' && styles.botaoFiltroAtivo]}
-                onPress={() => setMesFiltro('atual')}
-              >
-                <Text style={[styles.textoFiltro, mesFiltro === 'atual' && styles.textoFiltroAtivo]}>MÊS ATUAL</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.botaoFiltro, mesFiltro === 'anterior' && styles.botaoFiltroAtivo]}
-                onPress={() => setMesFiltro('anterior')}
-              >
-                <Text style={[styles.textoFiltro, mesFiltro === 'anterior' && styles.textoFiltroAtivo]}>MÊS ANTERIOR</Text>
-              </TouchableOpacity>
-            </View>
+        <ActionCard
+          titulo="MÊS DE REFERÊNCIA"
+          valor={periodoAtual.rotulo}
+          onPress={() => setModalPeriodoVisivel(true)}
+        />
 
-            <Text style={styles.labelCampo}>TIPO DE EVENTO:</Text>
-            <View style={styles.botoesLinha}>
-              <TouchableOpacity 
-                style={[styles.botaoFiltro, tipoFiltro === 'todos' && styles.botaoFiltroAtivo]}
-                onPress={() => setTipoFiltro('todos')}
-              >
-                <Text style={[styles.textoFiltro, tipoFiltro === 'todos' && styles.textoFiltroAtivo]}>AMBOS</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.botaoFiltro, tipoFiltro === 'descarte_vencimento' && styles.botaoFiltroAtivo]}
-                onPress={() => setTipoFiltro('descarte_vencimento')}
-              >
-                <Text style={[styles.textoFiltro, tipoFiltro === 'descarte_vencimento' && styles.textoFiltroAtivo]}>VENCIMENTOS</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.botaoFiltro, tipoFiltro === 'perda_quebra' && styles.botaoFiltroAtivo]}
-                onPress={() => setTipoFiltro('perda_quebra')}
-              >
-                <Text style={[styles.textoFiltro, tipoFiltro === 'perda_quebra' && styles.textoFiltroAtivo]}>PERDAS</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.infoResumo}>
-              <Text style={styles.textoResumo}>
-                {movimentacoesFiltradas.length} registro(s) encontrado(s).
-              </Text>
-            </View>
-          </View>
-        </View>
+        <ActionCard
+          titulo="TIPO DE EVENTO"
+          valor={OPCOES_TIPO.find((t) => t.valor === tipoFiltro)?.rotulo || 'AMBOS'}
+          onPress={() => setModalTipoVisivel(true)}
+        />
+
+        <ActionCard
+          titulo="REGISTROS ENCONTRADOS"
+          valor={carregando ? '...' : String(movimentacoesFiltradas.length)}
+          tipoCor="grey"
+        />
 
         <BotaoIndustrial
           titulo="GERAR E COMPARTILHAR"
           icone="share-social-outline"
-          cor="branco"
+          backgroundColor={Colors.surfaceLight}
+          textColor={Colors.text.dark}
           carregando={carregando}
           onPress={gerarECompartilharPDF}
         />
       </ScrollView>
+
+      <SeletorModal
+        visivel={modalPeriodoVisivel}
+        titulo="Mês de Referência"
+        opcoes={OPCOES_PERIODO.map(({ valor, rotulo, descricao }) => ({ valor, rotulo, descricao }))}
+        valorSelecionado={periodo}
+        onSelecionar={setPeriodo}
+        onFechar={() => setModalPeriodoVisivel(false)}
+      />
+
+      <SeletorModal
+        visivel={modalTipoVisivel}
+        titulo="Tipo de Evento"
+        opcoes={OPCOES_TIPO}
+        valorSelecionado={tipoFiltro}
+        onSelecionar={(valor) => setTipoFiltro(valor as TipoFiltro)}
+        onFechar={() => setModalTipoVisivel(false)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
-  content: { padding: 16 },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#111111',
-    marginBottom: 20,
-  },
-  cardHeader: {
-    backgroundColor: Colors.header,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 16,
-    padding: 14,
-    textAlign: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-  },
-  cardBody: {
-    padding: 16,
-  },
-  labelCampo: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#111111',
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  botoesLinha: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  botaoFiltro: {
-    backgroundColor: '#EEEEEE',
-    borderWidth: 1,
-    borderColor: '#AAAAAA',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  botaoFiltroAtivo: {
-    backgroundColor: Colors.header,
-    borderColor: '#111111',
-  },
-  textoFiltro: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#333333',
-  },
-  textoFiltroAtivo: {
-    color: '#FFFFFF',
-  },
-  infoResumo: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
-    alignItems: 'center',
-  },
-  textoResumo: {
-    fontSize: 14,
-    color: '#555555',
-    fontWeight: 'bold',
-  }
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { padding: 24 },
 });

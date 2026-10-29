@@ -1,4 +1,7 @@
 import { getSecureItem, setSecureItem, removeSecureItem } from './secureStorage';
+import { setCache, getCache } from '../cache/cacheService';
+import { enqueue } from '../cache/syncQueue';
+import { getNetworkStatus } from '../cache/networkMonitor';
 
 const BASE_URL = process.env.EXPO_PUBLIC_AZURE_API_URL || '';
 const TOKEN_KEY = 'tresirmaos_token';
@@ -40,6 +43,26 @@ export const clearToken = async (): Promise<void> => {
 };
 
 /**
+ * Verifica se um erro é causado por falha de rede (offline, timeout, DNS).
+ */
+function isNetworkError(error: any): boolean {
+  if (!error) return false;
+  const msg = error.message?.toLowerCase() || '';
+  return (
+    error.name === 'AbortError' ||
+    msg.includes('network request failed') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('fetch failed') ||
+    msg.includes('load failed') ||
+    msg.includes('aborted') ||
+    msg.includes('canceled') ||
+    msg.includes('cancelled') ||
+    msg.includes('timeout') ||
+    !getNetworkStatus()
+  );
+}
+
+/**
  * Cliente HTTP genérico com injeção automática de JWT e controle de Timeout.
  * Trata erros HTTP padronizados (401, 403, 500) e evita travamentos por rede lenta.
  */
@@ -50,9 +73,12 @@ export async function apiRequest<T = any>(
     body?: any;
     skipAuth?: boolean;
     timeoutMs?: number;
+    // Novas opções para cache offline
+    cacheKey?: string;         // Se fornecido, salva/lê do cache local
+    offlineDescricao?: string; // Se fornecido, enfileira escritas offline com esta descrição
   } = {}
 ): Promise<T> {
-  const { method = 'GET', body, skipAuth = false, timeoutMs = 20000 } = options;
+  const { method = 'GET', body, skipAuth = false, timeoutMs = 45000, cacheKey, offlineDescricao } = options;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -122,12 +148,51 @@ export async function apiRequest<T = any>(
       return undefined as T;
     }
 
-    return await response.json();
+    const data = await response.json();
+
+    // Sucesso! Atualiza o cache local se tiver chave configurada (apenas para GETs)
+    if (cacheKey && method === 'GET') {
+      await setCache(cacheKey, data);
+    }
+
+    return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+
+    // ── Interceptação Offline ──
+    if (isNetworkError(error)) {
+
+      // Para leituras (GET): tenta retornar do cache local
+      if (method === 'GET' && cacheKey) {
+        const cached = await getCache<T>(cacheKey);
+        if (cached.isCached && cached.data !== null) {
+          if (cached.isExpired) {
+            console.warn(`[Offline] Cache expirado (>3h) para "${cacheKey}", usando mesmo assim.`);
+          } else {
+            console.log(`[Offline] Usando cache local para "${cacheKey}".`);
+          }
+          return cached.data;
+        }
+      }
+
+      // Para escritas (POST/PUT/DELETE): enfileira para sincronização posterior
+      if (method !== 'GET' && offlineDescricao) {
+        await enqueue(endpoint, method, body, offlineDescricao);
+        // Lança um erro especial que a UI pode tratar de forma amigável
+        const offlineError = new Error(`Offline: "${offlineDescricao}" salvo para sincronização.`);
+        (offlineError as any).isOfflineQueued = true;
+        throw offlineError;
+      }
+
+      // Sem cache e sem fila — erro genérico amigável
+      throw new Error('Sem conexão com o servidor. Verifique sua rede.');
+    }
+
+    // Erros normais (não de rede)
+    if (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('canceled')) {
       throw new Error(`Tempo limite de requisição excedido (${timeoutMs / 1000}s).`);
     }
     throw error;
   }
 }
+

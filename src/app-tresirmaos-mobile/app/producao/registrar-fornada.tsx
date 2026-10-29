@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, Modal, TouchableOpacity, FlatList, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '../../constants/Colors';
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
+import ActionCard from '../../components/ui/ActionCard';
+import SeletorModal from '../../components/ui/SeletorModal';
 import { useAppStore } from '../../store/appStore';
 import { listarProdutos, ProdutoFinal, CATEGORIAS_PADRAO } from '../../services/api/produtosService';
 import { registrarFornada } from '../../services/api/producaoService';
@@ -126,7 +128,6 @@ export default function RegistrarFornadaScreen() {
         LotePrincipal: loteId,
         status: 'ativo',
         dataCriacao: agora.toISOString(),
-        // Campos extras para a vitrine
         ...({
           origem: 'interno',
           itemNome: produtoSelecionado.nome,
@@ -150,6 +151,24 @@ export default function RegistrarFornadaScreen() {
     }
   };
 
+  const opcoesCategorias = useMemo(
+    () => [
+      { valor: 'TODAS', rotulo: 'TODAS AS CATEGORIAS' },
+      ...CATEGORIAS_PADRAO.map((c) => ({ valor: c, rotulo: c })),
+    ],
+    []
+  );
+
+  const opcoesProdutos = useMemo(
+    () =>
+      produtosFiltrados.map((p) => ({
+        valor: p.id,
+        rotulo: p.nome,
+        descricao: p.categoria,
+      })),
+    [produtosFiltrados]
+  );
+
   if (carregando) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -168,27 +187,19 @@ export default function RegistrarFornadaScreen() {
             </View>
 
             <View style={styles.cardBody}>
-              {/* FILTRO POR CATEGORIA */}
-              <Text style={styles.labelCampo}>CATEGORIA:</Text>
-              <TouchableOpacity
-                style={styles.seletorBotao}
+              {/* FILTRO POR CATEGORIA ESTILO NOVO LOTE */}
+              <ActionCard
+                titulo="CATEGORIA"
+                valor={categoriaSelecionada || 'TODAS AS CATEGORIAS'}
                 onPress={() => setModalCategoriaVisivel(true)}
-              >
-                <Text style={styles.seletorBotaoTexto}>
-                  {categoriaSelecionada || 'TODAS AS CATEGORIAS'}
-                </Text>
-              </TouchableOpacity>
+              />
 
-              {/* SELEÇÃO DO PRODUTO */}
-              <Text style={styles.labelCampo}>PRODUTO FABRICADO:</Text>
-              <TouchableOpacity
-                style={styles.seletorBotao}
+              {/* SELEÇÃO DO PRODUTO ESTILO NOVO LOTE */}
+              <ActionCard
+                titulo="PRODUTO FABRICADO"
+                valor={produtoSelecionado ? produtoSelecionado.nome : 'SELECIONAR PRODUTO'}
                 onPress={() => setModalSeletorVisivel(true)}
-              >
-                <Text style={styles.seletorBotaoTexto}>
-                  {produtoSelecionado ? produtoSelecionado.nome : 'TOQUE PARA SELECIONAR O PRODUTO'}
-                </Text>
-              </TouchableOpacity>
+              />
 
               {/* QUANTIDADE E UNIDADE */}
               <Text style={styles.labelCampo}>QUANTIDADE PRODUZIDA:</Text>
@@ -202,45 +213,40 @@ export default function RegistrarFornadaScreen() {
                   onChangeText={setQuantidade}
                 />
                 <View style={styles.unidadeContainer}>
-                  <TouchableOpacity
-                    style={[styles.unidadeBotao, unidade === 'kg' && styles.unidadeBotaoAtivo]}
-                    onPress={() => setUnidade('kg')}
-                  >
-                    <Text style={[styles.unidadeTexto, unidade === 'kg' && styles.unidadeTextoAtivo]}>KG</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.unidadeBotao, unidade === 'un' && styles.unidadeBotaoAtivo]}
-                    onPress={() => setUnidade('un')}
-                  >
-                    <Text style={[styles.unidadeTexto, unidade === 'un' && styles.unidadeTextoAtivo]}>UN</Text>
-                  </TouchableOpacity>
+                  <TouchableWithoutFeedback onPress={() => setUnidade('kg')}>
+                    <View style={[styles.unidadeBotao, unidade === 'kg' && styles.unidadeBotaoAtivo]}>
+                      <Text style={[styles.unidadeTexto, unidade === 'kg' && styles.unidadeTextoAtivo]}>KG</Text>
+                    </View>
+                  </TouchableWithoutFeedback>
+                  <TouchableWithoutFeedback onPress={() => setUnidade('un')}>
+                    <View style={[styles.unidadeBotao, unidade === 'un' && styles.unidadeBotaoAtivo]}>
+                      <Text style={[styles.unidadeTexto, unidade === 'un' && styles.unidadeTextoAtivo]}>UN</Text>
+                    </View>
+                  </TouchableWithoutFeedback>
                 </View>
               </View>
 
               {/* VALIDADE - DATA */}
-              <Text style={styles.labelCampo}>VALIDADE - DATA:</Text>
-              <TouchableOpacity
-                style={styles.seletorBotao}
+              <ActionCard
+                titulo="VALIDADE - DATA"
+                valor={formatarData(dataValidade)}
                 onPress={() => setMostrarDatePicker(true)}
-              >
-                <Text style={styles.seletorBotaoTexto}>{formatarData(dataValidade)}</Text>
-              </TouchableOpacity>
+              />
 
               {/* VALIDADE - HORA */}
-              <Text style={styles.labelCampo}>VALIDADE - HORA:</Text>
-              <TouchableOpacity
-                style={styles.seletorBotao}
+              <ActionCard
+                titulo="VALIDADE - HORA"
+                valor={formatarHora(dataValidade)}
                 onPress={() => setMostrarTimePicker(true)}
-              >
-                <Text style={styles.seletorBotaoTexto}>{formatarHora(dataValidade)}</Text>
-              </TouchableOpacity>
+              />
 
               {/* BOTÃO SALVAR */}
               <View style={styles.botaoWrapper}>
                 <BotaoIndustrial
                   titulo="REGISTRAR FORNADA"
                   icone="restaurant-outline"
-                  cor="branco"
+                  backgroundColor={Colors.surfaceLight}
+                  textColor={Colors.text.dark}
                   carregando={salvando}
                   onPress={handleSalvarFornada}
                 />
@@ -271,103 +277,46 @@ export default function RegistrarFornadaScreen() {
           />
         )}
 
-        {/* MODAL SELETOR DE PRODUTOS */}
-        <Modal visible={modalSeletorVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>
-                  {categoriaSelecionada ? categoriaSelecionada.toUpperCase() : 'TODOS OS PRODUTOS'}
-                </Text>
-              </View>
+        {/* MODAL CATEGORIA NOVO PADRÃO NOVO LOTE */}
+        <SeletorModal
+          visivel={modalCategoriaVisivel}
+          titulo="Selecione a Categoria"
+          opcoes={opcoesCategorias}
+          valorSelecionado={categoriaSelecionada || 'TODAS'}
+          onSelecionar={(cat) => setCategoriaSelecionada(cat === 'TODAS' ? null : cat)}
+          onFechar={() => setModalCategoriaVisivel(false)}
+        />
 
-              <FlatList
-                data={produtosFiltrados}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setProdutoSelecionado(item);
-                      setModalSeletorVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item.nome}</Text>
-                    <Text style={styles.modalItemCategoria}>{item.categoria}</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={styles.listaVazia}>Nenhum produto encontrado nesta categoria.</Text>
-                }
-              />
-
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial
-                  titulo="FECHAR"
-                  cor="branco"
-                  onPress={() => setModalSeletorVisivel(false)}
-                />
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* MODAL SELETOR DE CATEGORIAS */}
-        <Modal visible={modalCategoriaVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>CATEGORIA</Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => {
-                  setCategoriaSelecionada(null);
-                  setModalCategoriaVisivel(false);
-                }}
-              >
-                <Text style={styles.modalItemTexto}>TODAS AS CATEGORIAS</Text>
-              </TouchableOpacity>
-
-              <FlatList
-                data={CATEGORIAS_PADRAO}
-                keyExtractor={(item) => item}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setCategoriaSelecionada(item);
-                      setModalCategoriaVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial
-                  titulo="FECHAR"
-                  cor="branco"
-                  onPress={() => setModalCategoriaVisivel(false)}
-                />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {/* MODAL PRODUTOS NOVO PADRÃO NOVO LOTE */}
+        <SeletorModal
+          visivel={modalSeletorVisivel}
+          titulo="Selecione o Produto"
+          opcoes={opcoesProdutos}
+          valorSelecionado={produtoSelecionado?.id}
+          textoVazio="Nenhum produto encontrado nesta categoria."
+          onSelecionar={(id) => {
+            const encontrado = produtos.find((p) => p.id === id) || null;
+            setProdutoSelecionado(encontrado);
+          }}
+          onFechar={() => setModalSeletorVisivel(false)}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
+  container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { padding: 16 },
   card: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: Colors.fundoCard,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   cardHeader: {
     backgroundColor: Colors.header,
@@ -379,15 +328,6 @@ const styles = StyleSheet.create({
   cardHeaderTexto: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
   cardBody: { padding: 20 },
   labelCampo: { fontSize: 14, fontWeight: 'bold', color: '#111111', marginBottom: 8 },
-  seletorBotao: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#111111',
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  seletorBotaoTexto: { fontSize: 16, fontWeight: 'bold', color: '#111111', textAlign: 'center' },
   inputLinha: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -399,6 +339,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#111111',
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 18,
@@ -409,14 +350,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderWidth: 1,
     borderColor: '#111111',
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
   },
   unidadeBotao: {
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
   unidadeBotaoAtivo: {
-    backgroundColor: '#DFE4F2',
+    backgroundColor: Colors.surface,
   },
   unidadeTexto: {
     fontWeight: 'bold',
@@ -426,40 +369,5 @@ const styles = StyleSheet.create({
   unidadeTextoAtivo: {
     color: '#111111',
   },
-  botaoWrapper: { marginTop: 4 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: Colors.fundoCard,
-    borderWidth: 1,
-    borderColor: '#111111',
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    backgroundColor: Colors.header,
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-    alignItems: 'center',
-  },
-  modalHeaderTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-  modalItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-    backgroundColor: '#FFFFFF',
-  },
-  modalItemTexto: { fontSize: 16, fontWeight: 'bold', color: '#111111' },
-  modalItemCategoria: { fontSize: 12, color: '#555555', marginTop: 2 },
-  modalFooter: { padding: 16 },
-  listaVazia: {
-    padding: 20,
-    textAlign: 'center',
-    color: '#555555',
-    fontWeight: 'bold',
-  },
+  botaoWrapper: { marginTop: 8 },
 });

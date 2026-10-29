@@ -2,6 +2,7 @@
 // CRUD completo de tarefas (Reposição, Manutenção, Descarte) via Azure Functions REST.
 
 import { apiRequest } from './apiClient';
+import { CACHE_KEYS } from '../cache/cacheService';
 
 export interface TarefaDoc {
   id: string;
@@ -31,6 +32,7 @@ export interface NovaTarefaPayload {
 
 /**
  * Lista tarefas com filtro opcional de status e tipo.
+ * Se offline, retorna dados do cache local (até 3h).
  */
 export async function listarTarefas(filtro?: { status?: string; tipo?: string }): Promise<TarefaDoc[]> {
   try {
@@ -42,7 +44,9 @@ export async function listarTarefas(filtro?: { status?: string; tipo?: string })
 
     if (params.length > 0) endpoint += `?${params.join('&')}`;
 
-    const data = await apiRequest<TarefaDoc[]>(endpoint);
+    const data = await apiRequest<TarefaDoc[]>(endpoint, {
+      cacheKey: CACHE_KEYS.TAREFAS,
+    });
     return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Erro ao listar tarefas:', error);

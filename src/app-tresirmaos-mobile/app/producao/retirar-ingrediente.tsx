@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, TextInput, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
+import ActionCard from '../../components/ui/ActionCard';
+import SeletorModal from '../../components/ui/SeletorModal';
 import { useAppStore } from '../../store/appStore';
 import { listarCatalogo, ProdutoCatalogo } from '../../services/api/catalogoService';
 import { buscarLotesAtivos, LotePayload } from '../../services/api/loteService';
-import { registrarMovimentacao } from '../../services/api/movimentacoesService';
-import { registrarConsumoIngrediente } from '../../services/api/producaoService';
 import { calcularDiasRestantes } from '../../utils/fefo';
 
 export default function RetirarIngredienteScreen() {
   const router = useRouter();
   const turnoAtivo = useAppStore((state) => state.turnoAtivo);
-  const usuarioEmail = useAppStore((state) => state.usuarioEmail);
 
   const [catalogo, setCatalogo] = useState<ProdutoCatalogo[]>([]);
   const [lotesAtivos, setLotesAtivos] = useState<LotePayload[]>([]);
@@ -106,6 +105,11 @@ export default function RetirarIngredienteScreen() {
     }
   };
 
+  const opcoesInsumos = useMemo(
+    () => catalogo.map((c) => ({ valor: c.id, rotulo: c.displayName })),
+    [catalogo]
+  );
+
   if (carregando) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -127,16 +131,12 @@ export default function RetirarIngredienteScreen() {
             </View>
 
             <View style={styles.cardBody}>
-              {/* SELEÇÃO DO INGREDIENTE */}
-              <Text style={styles.labelCampo}>SELECIONE A MATÉRIA-PRIMA:</Text>
-              <TouchableOpacity
-                style={styles.seletorBotao}
+              {/* SELEÇÃO DO INGREDIENTE ESTILO NOVO LOTE */}
+              <ActionCard
+                titulo="MATÉRIA-PRIMA"
+                valor={itemSelecionado ? itemSelecionado.displayName : 'SELECIONAR INSUMO'}
                 onPress={() => setModalSeletorVisivel(true)}
-              >
-                <Text style={styles.seletorBotaoTexto}>
-                  {itemSelecionado ? itemSelecionado.displayName : 'TOQUE PARA SELECIONAR O INSUMO'}
-                </Text>
-              </TouchableOpacity>
+              />
 
               {/* CARD DO VOLUME RECOMENDADO */}
               {itemSelecionado && (
@@ -173,7 +173,8 @@ export default function RetirarIngredienteScreen() {
                         <BotaoIndustrial
                           titulo="RETIRAR"
                           icone="cube-outline"
-                          cor="branco"
+                          backgroundColor={Colors.surfaceLight}
+                          textColor={Colors.text.dark}
                           carregando={confirmando}
                           onPress={handleConfirmarRetirada}
                         />
@@ -193,53 +194,36 @@ export default function RetirarIngredienteScreen() {
           </View>
         </ScrollView>
 
-        {/* MODAL SELETOR DE PRODUTOS */}
-        <Modal visible={modalSeletorVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>ESCOLHA O INSUMO</Text>
-              </View>
-
-              <FlatList
-                data={catalogo}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setItemSelecionado(item);
-                      setQuantidadeRetirada('');
-                      setModalSeletorVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item.displayName}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial
-                  titulo="FECHAR"
-                  cor="branco"
-                  onPress={() => setModalSeletorVisivel(false)}
-                />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {/* MODAL SELETOR DE PRODUTOS NOVO PADRÃO NOVO LOTE */}
+        <SeletorModal
+          visivel={modalSeletorVisivel}
+          titulo="Escolha o Insumo"
+          opcoes={opcoesInsumos}
+          valorSelecionado={itemSelecionado?.id}
+          onSelecionar={(id) => {
+            const encontrado = catalogo.find((c) => c.id === id) || null;
+            setItemSelecionado(encontrado);
+            setQuantidadeRetirada('');
+          }}
+          onFechar={() => setModalSeletorVisivel(false)}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
+  container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { padding: 16 },
   card: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: Colors.fundoCard,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   cardHeader: {
     backgroundColor: Colors.header,
@@ -251,26 +235,19 @@ const styles = StyleSheet.create({
   cardHeaderTexto: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
   cardBody: { padding: 20 },
   labelCampo: { fontSize: 14, fontWeight: 'bold', color: '#111111', marginBottom: 8 },
-  seletorBotao: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#111111',
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  seletorBotaoTexto: { fontSize: 16, fontWeight: 'bold', color: '#111111', textAlign: 'center' },
-  resultadoContainer: { marginTop: 8 },
+  resultadoContainer: { marginTop: 4 },
   fefoCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#111111',
     padding: 16,
   },
   fefoBadge: {
-    backgroundColor: '#DFE4F2',
+    backgroundColor: Colors.surface,
     paddingVertical: 6,
     paddingHorizontal: 12,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#111111',
     alignSelf: 'flex-start',
@@ -292,6 +269,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#111111',
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 18,
@@ -302,7 +280,8 @@ const styles = StyleSheet.create({
   },
   botaoConfirmarWrapper: { marginTop: 4 },
   semLotesCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#111111',
     padding: 24,
@@ -310,32 +289,4 @@ const styles = StyleSheet.create({
   },
   semLotesTitulo: { fontSize: 16, fontWeight: 'bold', color: '#111111', marginBottom: 6 },
   semLotesSubtexto: { fontSize: 14, color: '#555555', textAlign: 'center' },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: Colors.fundoCard,
-    borderWidth: 1,
-    borderColor: '#111111',
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    backgroundColor: Colors.header,
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-    alignItems: 'center',
-  },
-  modalHeaderTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-  modalItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-    backgroundColor: '#FFFFFF',
-  },
-  modalItemTexto: { fontSize: 16, fontWeight: 'bold', color: '#111111' },
-  modalFooter: { padding: 16 },
 });

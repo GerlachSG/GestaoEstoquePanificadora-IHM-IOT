@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Fonts } from '../../constants/theme';
 import { sendPromptToN8n, ActionCard } from '../../services/n8n/aiClient';
@@ -15,6 +16,59 @@ interface MensagemDisplay {
   autor: 'usuario' | 'ia';
   texto: string;
   actions?: ActionCard[];
+}
+
+function AnimatedPulseDots() {
+  const dot1 = useRef(new Animated.Value(0.25)).current;
+  const dot2 = useRef(new Animated.Value(0.25)).current;
+  const dot3 = useRef(new Animated.Value(0.25)).current;
+
+  useEffect(() => {
+    const pulse = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 350, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.25, duration: 350, useNativeDriver: true }),
+        ])
+      );
+
+    const a1 = pulse(dot1, 0);
+    const a2 = pulse(dot2, 180);
+    const a3 = pulse(dot3, 360);
+
+    a1.start();
+    a2.start();
+    a3.start();
+
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, [dot1, dot2, dot3]);
+
+  return (
+    <View style={styles.dotsRow}>
+      <Animated.View style={[styles.dot, { opacity: dot1 }]} />
+      <Animated.View style={[styles.dot, { opacity: dot2 }]} />
+      <Animated.View style={[styles.dot, { opacity: dot3 }]} />
+    </View>
+  );
+}
+
+function FadeInMessage({ children }: { children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(6)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start();
+  }, [opacity, translateY]);
+
+  return <Animated.View style={{ opacity, transform: [{ translateY }] }}>{children}</Animated.View>;
 }
 
 // --- RENDERIZADOR NATIVO DE MARKDOWN AJUSTADO ---
@@ -166,7 +220,8 @@ export default function ChatInterface({ contexto = 'planejamento' }: ChatInterfa
     const acaoH = totalAcoes > 0 ? msg.actions![indexAtual] : null;
 
     return (
-      <View key={msg.id} style={styles.mensagemContainer}>
+      <FadeInMessage key={msg.id}>
+        <View style={styles.mensagemContainer}>
         
         {/* BALÃO DE TEXTO */}
         <View style={[styles.balao, isUser ? styles.balaoUser : styles.balaoIa]}>
@@ -249,7 +304,8 @@ export default function ChatInterface({ contexto = 'planejamento' }: ChatInterfa
               </View>
            );
         })()}
-      </View>
+        </View>
+      </FadeInMessage>
     );
   };
 
@@ -259,23 +315,25 @@ export default function ChatInterface({ contexto = 'planejamento' }: ChatInterfa
          {chat.map(renderMensagem)}
          {carregando && (
            <View style={styles.loadingContainer}>
-             <ActivityIndicator color={Colors.botaoBranco} size="small" />
-             <Text style={styles.loadingText}>Analisando dados do sistema...</Text>
+             <AnimatedPulseDots />
+             <Text style={styles.loadingText}>Processando IA...</Text>
            </View>
          )}
       </ScrollView>
       <View style={styles.inputArea}>
-        <TextInput 
-          style={styles.input}
-          placeholder="Descreva a situação..."
-          placeholderTextColor="#768AA4"
-          value={input}
-          onChangeText={setInput}
-          multiline
-        />
-        <TouchableOpacity style={styles.btnEnvio} onPress={handleSend} disabled={carregando}>
-           <Text style={styles.btnEnvioText}>ENVIAR</Text>
-        </TouchableOpacity>
+        <View style={styles.inputContainer}>
+          <TextInput 
+            style={styles.input}
+            placeholder="Descreva a situação..."
+            placeholderTextColor="#768AA4"
+            value={input}
+            onChangeText={setInput}
+            multiline
+          />
+          <TouchableOpacity style={styles.btnEnvio} onPress={handleSend} disabled={carregando}>
+             <Ionicons name="send" size={20} color="#111" />
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -283,50 +341,53 @@ export default function ChatInterface({ contexto = 'planejamento' }: ChatInterfa
 
 // ESTILOS GERAIS DA TELA
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
+  container: { flex: 1, backgroundColor: Colors.background },
   chatArea: { padding: 16, paddingBottom: 40 },
   mensagemContainer: { marginBottom: 24, flexShrink: 1 },
   
-  // Balões
-  balao: { padding: 16, borderRadius: 0, maxWidth: '90%', flexShrink: 1 },
-  balaoUser: { backgroundColor: Colors.header, alignSelf: 'flex-end', borderWidth: 1, borderColor: '#111' },
-  balaoIa: { backgroundColor: Colors.botaoBranco, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#111' },
+  // Balões Modernos
+  balao: { padding: 16, borderRadius: 20, maxWidth: '85%', flexShrink: 1, elevation: 2 },
+  balaoUser: { backgroundColor: '#2D4F56', alignSelf: 'flex-end', borderBottomRightRadius: 4 },
+  balaoIa: { backgroundColor: '#333333', alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
   nomeAutor: { fontSize: 11, fontWeight: 'bold', marginBottom: 8, letterSpacing: 1, fontFamily: Fonts.sans },
-  textoBranco: { color: '#FFF' },
-  textoChumbo: { color: '#555' },
-  textoUsuario: { color: '#FFF', fontSize: 16, fontWeight: 'bold', lineHeight: 22, fontFamily: Fonts.sans, flexShrink: 1 },
+  textoBranco: { color: '#B0C4DE' },
+  textoChumbo: { color: '#A9A9A9' },
+  textoUsuario: { color: '#FFFFFF', fontSize: 16, lineHeight: 24, fontFamily: Fonts.sans, flexShrink: 1 },
   
   // Card de Ação Integrado
-  actionWrapper: { marginTop: -1, alignSelf: 'flex-start', width: '90%' },
-  actionHeader: { backgroundColor: '#111', paddingVertical: 6, paddingHorizontal: 16, flexShrink: 1 },
-  actionTitle: { color: '#FFF', fontSize: 11, fontWeight: 'bold', letterSpacing: 1, fontFamily: Fonts.sans },
-  actionCard: { backgroundColor: Colors.fundoCard, padding: 16, borderWidth: 1, borderColor: '#111' },
-  actionCardConcluida: { backgroundColor: '#E0E0E0' },
-  actionCabecalhoTexto: { fontSize: 15, fontWeight: '900', color: '#111', marginBottom: 8, textTransform: 'uppercase', fontFamily: Fonts.sans },
-  actionMotivo: { fontSize: 14, color: '#333', lineHeight: 20, marginBottom: 16, fontFamily: Fonts.sans },
+  actionWrapper: { marginTop: 8, alignSelf: 'flex-start', width: '90%' },
+  actionHeader: { backgroundColor: Colors.status.normal, paddingVertical: 6, paddingHorizontal: 16, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+  actionTitle: { color: '#111', fontSize: 11, fontWeight: 'bold', letterSpacing: 1, fontFamily: Fonts.sans },
+  actionCard: { backgroundColor: '#222222', padding: 16, borderBottomLeftRadius: 12, borderBottomRightRadius: 12 },
+  actionCardConcluida: { backgroundColor: '#444444', opacity: 0.8 },
+  actionCabecalhoTexto: { fontSize: 15, fontWeight: '900', color: '#FFF', marginBottom: 8, textTransform: 'uppercase', fontFamily: Fonts.sans },
+  actionMotivo: { fontSize: 14, color: '#DDD', lineHeight: 20, marginBottom: 16, fontFamily: Fonts.sans },
   
   // Parâmetros com Wrap
-  parametrosContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 16, marginBottom: 12, backgroundColor: '#D9D9D9', padding: 8, borderWidth: 1, borderColor: '#CCC' },
-  textoParametro: { fontSize: 13, color: '#333', fontFamily: Fonts.sans },
+  parametrosContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 16, marginBottom: 12, backgroundColor: '#333', padding: 12, borderRadius: 8 },
+  textoParametro: { fontSize: 14, color: '#FFF', fontFamily: Fonts.sans },
 
   // Controles do Card
-  actionControls: { flexDirection: 'row', alignItems: 'center' },
-  btnNav: { backgroundColor: '#111', width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  actionControls: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  btnNav: { backgroundColor: '#444', width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   btnNavText: { color: '#FFF', fontWeight: '900', fontSize: 16, fontFamily: Fonts.sans },
   btnAcoesContainer: { flex: 1, paddingHorizontal: 12 },
   
   // Botões de Ação com wrap
-  btnAcaoG: { flex: 1, minWidth: 100, backgroundColor: '#111', paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
-  btnAcaoR: { flex: 1, minWidth: 100, backgroundColor: 'transparent', paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#111' },
-  btnAcaoTexto: { color: '#FFF', fontWeight: '900', fontSize: 11, letterSpacing: 0.5, fontFamily: Fonts.sans, textAlign: 'center' },
+  btnAcaoG: { flex: 1, minWidth: 100, backgroundColor: Colors.surfaceLight, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  btnAcaoR: { flex: 1, minWidth: 100, backgroundColor: 'transparent', paddingVertical: 14, paddingHorizontal: 8, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FFF' },
+  btnAcaoTexto: { color: Colors.text.dark, fontWeight: '900', fontSize: 12, letterSpacing: 0.5, fontFamily: Fonts.sans, textAlign: 'center' },
 
-  // Loading
-  loadingContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', alignSelf: 'flex-start', padding: 12, borderRadius: 4, borderWidth: 1, borderColor: '#111' },
-  loadingText: { color: '#FFF', fontSize: 13, fontWeight: 'bold', marginLeft: 10, fontFamily: Fonts.sans },
+  // Loading Moderno com pulso nativo
+  loadingContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.header, alignSelf: 'flex-start', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 20, marginTop: 4 },
+  loadingText: { color: Colors.text.light, fontSize: 13, fontWeight: 'bold', marginLeft: 10, fontFamily: Fonts.sans },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.surfaceLight },
 
-  // Input ajustado para ficar menos espesso/grosso
-  inputArea: { flexDirection: 'row', padding: 12, backgroundColor: '#111', alignItems: 'flex-end' },
-  input: { flex: 1, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#555', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, minHeight: 48, maxHeight: 120, color: '#111', fontWeight: 'bold', fontSize: 15, fontFamily: Fonts.sans },
-  btnEnvio: { backgroundColor: Colors.header, height: 48, minWidth: 90, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', marginLeft: 12, borderWidth: 1, borderColor: '#555' },
-  btnEnvioText: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 1, fontFamily: Fonts.sans }
+  // Input Moderno
+  inputArea: { padding: 12, paddingBottom: Platform.OS === 'ios' ? 24 : 12, backgroundColor: Colors.background },
+  inputContainer: { flexDirection: 'row', backgroundColor: Colors.header, borderRadius: 28, alignItems: 'flex-end', padding: 6, borderWidth: 1, borderColor: '#3A484A' },
+  input: { flex: 1, backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, minHeight: 40, maxHeight: 120, color: '#FFF', fontSize: 16, fontFamily: Fonts.sans },
+  btnEnvio: { backgroundColor: Colors.surfaceLight, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+
 });

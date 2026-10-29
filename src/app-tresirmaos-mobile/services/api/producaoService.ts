@@ -3,6 +3,7 @@
 
 import { apiRequest } from './apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCache, setCache } from '../cache/cacheService';
 
 const LOCAL_TURNO_KEY = 'tresirmaos_turno_ativo';
 
@@ -235,6 +236,7 @@ export async function registrarPerda(payload: {
   turnoId: string;
   item: string;
   itemNome: string;
+  loteId?: string;
   quantidade: number;
   unidade?: 'kg' | 'un';
   motivo: string;
@@ -248,6 +250,7 @@ export async function registrarPerda(payload: {
     itemNome: payload.itemNome,
     quantidade: payload.quantidade,
     unidade: payload.unidade || 'kg',
+    loteId: payload.loteId,
     motivo: payload.motivo,
     dataHora: new Date().toISOString(),
     operadorEmail: payload.operadorEmail,
@@ -325,4 +328,44 @@ export async function fecharTurno(
   }
 
   await AsyncStorage.removeItem(LOCAL_TURNO_KEY);
+}
+
+/**
+ * Lista todos os turnos fechados (histórico) usando Stale-While-Revalidate.
+ */
+export async function listarTurnos(anoMes?: string): Promise<ResumoTurno[]> {
+  const mesParam = anoMes || extrairAnoMes();
+  const cacheKey = `historico_turnos_${mesParam}`;
+
+  // 1. Tenta recuperar do cache (0ms)
+  const { data: cachedData, isExpired, isCached } = await getCache<ResumoTurno[]>(cacheKey);
+
+  // 2. Define a chamada em background
+  const fetchAPI = async () => {
+    try {
+      const data = await apiRequest<ResumoTurno[]>(
+        `/api/producao?listarTurnosFechados=true&anoMes=${encodeURIComponent(mesParam)}`,
+        { timeoutMs: 5000 }
+      );
+      if (data && Array.isArray(data)) {
+        await setCache(cacheKey, data);
+        return data;
+      }
+    } catch (e) {
+      console.warn('Erro na nuvem ao buscar histórico:', e);
+    }
+    return [];
+  };
+
+  // 3. Stale-While-Revalidate
+  if (isCached && cachedData) {
+    if (isExpired) {
+      // Se expirou (mais de 3h), atualiza no background
+      fetchAPI().catch(() => {});
+    }
+    return cachedData; // Retorna imediatamente o cache (mesmo se desatualizado)
+  }
+
+  // Sem cache, bloqueia e busca da API
+  return await fetchAPI();
 }

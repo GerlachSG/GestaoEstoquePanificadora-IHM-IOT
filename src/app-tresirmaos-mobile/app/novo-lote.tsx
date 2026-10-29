@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 
 import BotaoIndustrial from '../components/ui/BotaoIndustrial';
+import ActionCard from '../components/ui/ActionCard';
+import { useToast } from '../components/ui/CustomToast';
 import { Colors } from '../constants/Colors';
 import { LotePayload, registrarEtiquetas } from '../services/api/loteService';
 import { listarCatalogo, salvarProduto } from '../services/api/catalogoService';
@@ -55,6 +57,7 @@ function formatarDataBR(date: Date): string {
 }
 
 export default function NovoLoteScreen() {
+    const { showToast } = useToast();
     // 2. ATUALIZADO: itemSelecionado agora é um objeto
     const [itemSelecionado, setItemSelecionado] = useState<ProdutoCatalogo | null>(null);
     const [loteFornecedor, setLoteFornecedor] = useState('');
@@ -127,15 +130,15 @@ export default function NovoLoteScreen() {
 
     const handleGerarEtiqueta = () => {
         if (!itemSelecionado) {
-            Alert.alert('Atenção', 'Selecione um item.');
+            showToast('Selecione um item.', 'error');
             return;
         }
         if (!pesoLote || isNaN(Number(pesoLote.replace(',', '.')))) {
-            Alert.alert('Atenção', `Digite um peso válido em ${pesoUnidade}.`);
+            showToast(`Digite um peso válido em ${pesoUnidade}.`, 'error');
             return;
         }
         if (!dataValidade) {
-            Alert.alert('Atenção', 'Selecione a data de validade.');
+            showToast('Selecione a data de validade.', 'error');
             return;
         }
 
@@ -296,20 +299,11 @@ export default function NovoLoteScreen() {
         <View style={styles.container}>
             <View style={styles.content}>
                 {/* Campo ITEM */}
-                <View style={styles.campo}>
-                    <View style={styles.label}>
-                        <Text style={styles.labelTexto}>ITEM</Text>
-                    </View>
-                    <TouchableOpacity
-                        style={styles.valor}
-                        onPress={() => setModalItemVisivel(true)}
-                    >
-                        {/* 6. ATUALIZADO: Mostra o Nome do Item selecionado */}
-                        <Text style={styles.valorTexto}>
-                            {itemSelecionado ? itemSelecionado.displayName : 'SELECIONAR'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                <ActionCard 
+                    titulo="ITEM"
+                    valor={itemSelecionado ? itemSelecionado.displayName : 'SELECIONAR'}
+                    onPress={() => setModalItemVisivel(true)}
+                />
 
                 <View style={styles.campo}>
                     <View style={styles.label}>
@@ -343,36 +337,25 @@ export default function NovoLoteScreen() {
                     </View>
                 </View>
 
-        {/* Campo VALIDADE */}
-                <View style={styles.campo}>
-                    <View style={styles.label}>
-                        <Text style={styles.labelTexto}>VALIDADE</Text>
-                    </View>
-                    <TouchableOpacity
-                        style={styles.valor}
-                        onPress={() => {
-                            if (Platform.OS === 'web') {
-                                Alert.alert('Aviso', 'O seletor de data funciona apenas no celular (Expo Go).');
-                                return;
-                            }
-                            setMostrarDatePicker(true);
-                        }}
-                    >
-                        <Text style={styles.valorTexto}>
-                            {dataValidade ? formatarDataBR(dataValidade) : '00/00/0000'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Campo VALIDADE */}
+                <ActionCard 
+                    titulo="VALIDADE"
+                    valor={dataValidade ? formatarDataBR(dataValidade) : '00/00/0000'}
+                    onPress={() => {
+                        if (Platform.OS === 'web') {
+                            showToast('O seletor de data funciona apenas no celular (Expo Go).', 'info');
+                            return;
+                        }
+                        setMostrarDatePicker(true);
+                    }}
+                />
 
                 {/* Campo ID LOTE */}
-                <View style={styles.campo}>
-                    <View style={styles.label}>
-                        <Text style={styles.labelTexto}>ID LOTE</Text>
-                    </View>
-                    <View style={styles.valorDesabilitado}>
-                        <Text style={styles.valorDesabilitadoTexto}>AUTOMÁTICO</Text>
-                    </View>
-                </View>
+                <ActionCard 
+                    titulo="ID LOTE"
+                    valor="AUTOMÁTICO"
+                    tipoCor="grey"
+                />
 
                 {/* Contador de etiquetas geradas */}
                 {etiquetasGeradas.length > 0 && (
@@ -386,7 +369,8 @@ export default function NovoLoteScreen() {
             <View style={styles.footer}>
                 <BotaoIndustrial
                     titulo="GERAR ETIQUETA"
-                    cor="branco"
+                    backgroundColor={Colors.surfaceLight}
+                    textColor={Colors.text.dark}
                     onPress={handleGerarEtiqueta}
                 />
             </View>
@@ -410,7 +394,8 @@ export default function NovoLoteScreen() {
                             <View style={{ marginTop: 20, paddingHorizontal: 20 }}>
                                 <BotaoIndustrial
                                     titulo="CONFIRMAR"
-                                    cor="branco"
+                                    backgroundColor={Colors.surfaceLight}
+                                    textColor={Colors.text.dark}
                                     onPress={() => setMostrarDatePicker(false)}
                                 />
                             </View>
@@ -515,17 +500,20 @@ export default function NovoLoteScreen() {
                         <View style={styles.etiquetaBotoes}>
                             <BotaoIndustrial
                                 titulo="IMPRIMIR"
-                                cor="branco"
+                                backgroundColor={Colors.surfaceLight}
+                                textColor={Colors.text.dark}
                                 onPress={handleImprimir}
                             />
                             <BotaoIndustrial
                                 titulo="CANCELAR"
-                                cor="branco"
+                                backgroundColor={Colors.surfaceLight}
+                                textColor={Colors.text.dark}
                                 onPress={handleAbrirCancelamento}
                             />
                             <BotaoIndustrial
                                 titulo="FINALIZAR LOTE"
-                                cor="branco"
+                                backgroundColor={Colors.surfaceLight}
+                                textColor={Colors.text.dark}
                                 onPress={handleFinalizar}
                             />
                         </View>
@@ -567,7 +555,8 @@ export default function NovoLoteScreen() {
                         <View style={{ marginTop: 20, paddingHorizontal: 20 }}>
                             <BotaoIndustrial
                                 titulo="CONFIRMAR CANCELAMENTO"
-                                cor="branco"
+                                backgroundColor={Colors.surfaceLight}
+                                textColor={Colors.text.dark}
                                 onPress={handleConfirmarCancelamento}
                             />
                             <TouchableOpacity
@@ -592,7 +581,7 @@ export default function NovoLoteScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.fundoEscuro,
+        backgroundColor: Colors.background,
     },
     content: {
         flex: 1,

@@ -1,54 +1,95 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
-import { IconeAlertaSvg, IconeUrgenteSvg, IconeVencidoSvg } from './IconesBase';
 
 interface BotaoProps {
   titulo: string;
   onPress: () => void;
-  cor?: 'branco' | 'normal' | 'alerta' | 'urgente' | 'vencido'; 
+  backgroundColor?: string;
+  textColor?: string;
   icone?: keyof typeof Ionicons.glyphMap;
+  iconeNode?: ReactNode;
   carregando?: boolean;
-  semSvg?: boolean;
   compacto?: boolean;
+  variante?: 'padrao' | 'grid' | 'largo';
+  iconRight?: boolean;
+  iconTop?: boolean; // Novo controle explicito para icone no topo
 }
 
-export default function BotaoIndustrial({ titulo, onPress, cor = 'branco', icone, carregando, semSvg = false, compacto = false }: BotaoProps) {
+export default function BotaoIndustrial({ 
+  titulo, 
+  onPress, 
+  backgroundColor = Colors.surfaceLight, 
+  textColor = Colors.text.dark,
+  icone, 
+  iconeNode,
+  carregando, 
+  compacto = false,
+  variante = 'padrao',
+  iconRight = false,
+  iconTop = false
+}: BotaoProps) {
   
-  const getBackgroundColor = () => {
-    switch (cor) {
-      case 'normal': return Colors.status.normal;
-      case 'alerta': return Colors.status.alerta;
-      case 'urgente': return Colors.status.urgente;
-      case 'vencido': return Colors.status.vencido;
-      default: return Colors.botaoBranco;
-    }
-  };
-
-  const isTextoEscuro = cor === 'branco' || cor === 'alerta' || cor === 'normal' || cor === 'urgente';
-  const corTexto = isTextoEscuro ? '#111111' : '#FFFFFF';
+  const isGrid = variante === 'grid';
+  const isLargo = variante === 'largo';
 
   return (
     <TouchableOpacity
-      style={[styles.botao, compacto && styles.botaoCompacto, { backgroundColor: getBackgroundColor() }]}
+      style={[
+        styles.botaoBase,
+        isGrid && styles.botaoGrid,
+        isLargo && styles.botaoLargo,
+        !isGrid && !isLargo && styles.botaoPadrao,
+        compacto && styles.botaoCompacto,
+        { backgroundColor }
+      ]}
       onPress={onPress}
       disabled={carregando}
       activeOpacity={0.8}
     >
       {carregando ? (
-        <ActivityIndicator color={corTexto} />
+        <ActivityIndicator color={textColor} />
       ) : (
-        <View style={styles.conteudoInterno}>
-          <Text style={[styles.texto, compacto && styles.textoCompacto, { color: corTexto, marginRight: (cor === 'alerta' || cor === 'urgente' || cor === 'vencido') ? 8 : 0 }]}>
+        <View style={[styles.conteudoInterno, iconTop ? styles.conteudoTop : (iconRight ? styles.conteudoRight : styles.conteudoRow)]}>
+          
+          {!iconRight && iconeNode && (
+            <View style={iconTop ? styles.iconeWrapperTop : styles.iconeWrapperLeft}>
+              {iconeNode}
+            </View>
+          )}
+
+          {!iconRight && icone && !iconeNode && (
+            <Ionicons 
+              name={icone} 
+              size={iconTop ? 36 : (compacto ? 18 : 24)} 
+              color={textColor} 
+              style={iconTop ? styles.iconeTop : styles.iconeLeft} 
+            />
+          )}
+          
+          <Text style={[
+            styles.texto, 
+            iconTop ? styles.textoIconTop : styles.textoPadrao, 
+            compacto && styles.textoCompacto, 
+            { color: textColor }
+          ]}>
             {titulo}
           </Text>
-          {!semSvg && cor === 'alerta' && <IconeAlertaSvg width={24} height={24} />}
-          {!semSvg && cor === 'urgente' && <IconeUrgenteSvg width={24} height={24} />}
-          {!semSvg && cor === 'vencido' && <IconeVencidoSvg width={24} height={24} />}
+
+          {iconRight && iconeNode && (
+            <View style={styles.iconeWrapperRight}>
+              {iconeNode}
+            </View>
+          )}
           
-          {icone && (semSvg || (cor !== 'alerta' && cor !== 'urgente' && cor !== 'vencido')) && (
-            <Ionicons name={icone} size={compacto ? 18 : 24} color={corTexto} style={styles.icone} />
+          {iconRight && icone && !iconeNode && (
+            <Ionicons 
+              name={icone} 
+              size={compacto ? 18 : 24} 
+              color={textColor} 
+              style={styles.iconeRight} 
+            />
           )}
         </View>
       )}
@@ -57,38 +98,88 @@ export default function BotaoIndustrial({ titulo, onPress, cor = 'branco', icone
 }
 
 const styles = StyleSheet.create({
-  botao: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  botaoBase: {
     justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  botaoPadrao: {
     paddingVertical: 18,
     paddingHorizontal: 20,
-    borderRadius: 4,
-    marginBottom: 20,
+    borderRadius: 16,
+    marginBottom: 16,
     width: '100%',
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#111111',
+  },
+  botaoLargo: {
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    width: '100%',
+  },
+  botaoGrid: {
+    flex: 1,
+    paddingVertical: 24,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginBottom: 16,
   },
   botaoCompacto: {
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 10,
+    borderRadius: 12,
+  },
+  conteudoInterno: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  conteudoRow: {
+    flexDirection: 'row',
+  },
+  conteudoRight: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  conteudoTop: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   texto: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
+    fontFamily: 'Inter_700Bold', 
     textAlign: 'center' 
+  },
+  textoPadrao: {
+    fontSize: 18, 
+  },
+  textoIconTop: {
+    fontSize: 18,
   },
   textoCompacto: {
     fontSize: 14,
   },
-  icone: { 
-    marginLeft: 10 
+  iconeLeft: { 
+    marginRight: 10 
   },
-  conteudoInterno: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconeRight: {
+    marginLeft: 10,
+  },
+  iconeTop: {
+    marginBottom: 12,
+  },
+  iconeWrapperLeft: {
+    marginRight: 12
+  },
+  iconeWrapperRight: {
+    marginLeft: 12
+  },
+  iconeWrapperTop: {
+    marginBottom: 12
   }
-});
+});

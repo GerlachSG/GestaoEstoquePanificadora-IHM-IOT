@@ -3,6 +3,8 @@ import { View, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
 import { Colors } from '../../constants/Colors';
+import { IconeProdutosLimitesSvg } from '../../components/ui/IconesOficiais';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ConfiguracoesMenu() {
   return (
@@ -14,15 +16,31 @@ export default function ConfiguracoesMenu() {
       <View style={styles.content}>
         <BotaoIndustrial
           titulo="Produtos e Limites"
-          icone="cube-outline"
-          cor="branco"
+          iconeNode={<IconeProdutosLimitesSvg width={42} height={42} color={Colors.text.dark} />}
+          variante="largo"
+          iconTop
+          backgroundColor={Colors.surfaceLight}
+          textColor={Colors.text.dark}
           onPress={() => router.push('/configuracoes/produtos')}
+        />
+
+        <BotaoIndustrial
+          titulo="RENDIMENTO DA PRODUÇÃO"
+          icone="pie-chart-outline"
+          variante="largo"
+          iconTop
+          backgroundColor={Colors.surfaceLight}
+          textColor={Colors.text.dark}
+          onPress={() => router.push('/relatorios/rendimento')}
         />
 
         <BotaoIndustrial
           titulo="EXPORTAR RELATÓRIO SANITÁRIO"
           icone="document-text-outline"
-          cor="branco"
+          variante="largo"
+          iconTop
+          backgroundColor={Colors.surfaceLight}
+          textColor={Colors.text.dark}
           onPress={() => router.push('/relatorios/exportar')}
         />
       </View>
@@ -31,7 +49,7 @@ export default function ConfiguracoesMenu() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
-  header: { alignItems: 'center', backgroundColor: Colors.fundoEscuro },
-  content: { flex: 1, paddingHorizontal: 24, justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { alignItems: 'center', backgroundColor: Colors.background },
+  content: { flex: 1, paddingHorizontal: 24, justifyContent: 'center', gap: 24 },
 });

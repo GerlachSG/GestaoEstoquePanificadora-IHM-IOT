@@ -75,7 +75,12 @@ export default function FecharTurnoScreen() {
     return (
       <View style={[styles.container, { justifyContent: 'center', padding: 24 }]}>
         <Text style={styles.textoSemTurno}>Nenhum turno aberto no momento.</Text>
-        <BotaoIndustrial titulo="VOLTAR" cor="branco" onPress={() => router.back()} />
+        <BotaoIndustrial
+          titulo="VOLTAR"
+          backgroundColor={Colors.surfaceLight}
+          textColor={Colors.text.dark}
+          onPress={() => router.back()}
+        />
       </View>
     );
   }
@@ -85,16 +90,29 @@ export default function FecharTurnoScreen() {
       <View style={styles.content}>
         {/* INFORMAÇÕES DO TURNO */}
         <View style={styles.infoCard}>
-          <View style={styles.infoLinha}>
-            <Text style={styles.infoRotulo}>DURAÇÃO DO EXPEDIENTE</Text>
-            <Text style={styles.infoValorGrande}>{tempoDecorrido}</Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardHeaderTexto}>RESUMO DO EXPEDIENTE</Text>
           </View>
 
-          <View style={styles.separador} />
+          <View style={styles.cardBody}>
+            <View style={styles.infoLinha}>
+              <Text style={styles.infoRotulo}>DURAÇÃO</Text>
+              <Text style={styles.infoValorGrande}>{tempoDecorrido}</Text>
+            </View>
 
-          <View style={styles.infoLinha}>
-            <Text style={styles.infoRotulo}>OPERADOR</Text>
-            <Text style={styles.infoValor}>{turnoAtivo.operadorEmail || usuarioEmail}</Text>
+            <View style={styles.separador} />
+
+            <View style={styles.infoLinha}>
+              <Text style={styles.infoRotulo}>TURNO ID</Text>
+              <Text style={styles.infoValor}>{turnoAtivo.id}</Text>
+            </View>
+
+            <View style={styles.separador} />
+
+            <View style={styles.infoLinha}>
+              <Text style={styles.infoRotulo}>OPERADOR</Text>
+              <Text style={styles.infoValor}>{turnoAtivo.operadorEmail || usuarioEmail}</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -102,9 +120,10 @@ export default function FecharTurnoScreen() {
       {/* BOTÃO DE ENCERRAMENTO */}
       <View style={styles.footer}>
         <BotaoIndustrial
-          titulo="CONFIRMAR E ENCERRAR TURNO"
+          titulo="ENCERRAR TURNO"
           icone="stop-circle-outline"
-          cor="branco"
+          backgroundColor={Colors.surfaceLight}
+          textColor={Colors.text.dark}
           carregando={fechando}
           onPress={handleConfirmarFechamento}
         />
@@ -114,41 +133,58 @@ export default function FecharTurnoScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
+  container: { flex: 1, backgroundColor: Colors.background },
   content: {
     flex: 1,
     padding: 24,
     justifyContent: 'center',
   },
   infoCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#111111',
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  cardHeader: {
+    backgroundColor: Colors.header,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  cardHeaderTexto: {
+    color: Colors.text.light,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+  },
+  cardBody: {
     padding: 24,
   },
   infoLinha: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   infoRotulo: {
     fontSize: 13,
     fontWeight: 'bold',
     color: '#555555',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   infoValorGrande: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: 'bold',
-    color: '#111111',
+    color: Colors.text.dark,
   },
   infoValor: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#111111',
+    color: Colors.text.dark,
   },
   separador: {
     height: 1,
-    backgroundColor: '#111111',
+    backgroundColor: '#E0E0E0',
     marginVertical: 8,
   },
   footer: {
@@ -156,7 +192,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   textoSemTurno: {
-    color: '#FFFFFF',
+    color: Colors.text.light,
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,

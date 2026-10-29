@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { IconeAlertaSvg, IconeUrgenteSvg, IconeVencidoSvg } from '../../components/ui/IconesBase';
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
+import StatusPanel from '../../components/ui/StatusPanel';
 
 export type StatusType = 'vencido' | 'urgente' | 'alerta' | 'normal';
 
@@ -88,7 +89,7 @@ export default function CamaraScreen() {
     fetchTelemetriaEAlertas();
   }, [fetchTelemetriaEAlertas]);
 
-  const corFundoStatus = Colors.status[statusGeral] || Colors.status.normal;
+  // A cor de fundo é definida dentro do StatusPanel
 
   const renderIconeStatus = () => {
     if (statusGeral === 'vencido') return <IconeVencidoSvg width={24} height={24} />;
@@ -99,113 +100,72 @@ export default function CamaraScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardHeaderTexto}>Condições da Câmara</Text>
-          {renderIconeStatus()}
+      {carregando ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.text.light} />
+          <Text style={styles.loadingTexto}>Conectando à Câmara...</Text>
         </View>
-
-        <View style={styles.cardBody}>
-          {carregando ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#111111" />
-              <Text style={styles.loadingTexto}>Conectando à Câmara...</Text>
-            </View>
-          ) : erroConexao ? (
-            <View style={styles.erroContainer}>
-              <Text style={styles.erroTitulo}>Câmara Fria Desconectada</Text>
-              <Text style={styles.erroSubtexto}>
-                O servidor da câmara (ESP32/Flask) está desligado ou indisponível no momento.
-              </Text>
-              <View style={styles.botaoAcaoContainer}>
-                <BotaoIndustrial
-                  titulo="TENTAR NOVAMENTE"
-                  icone="refresh-outline"
-                  cor="branco"
-                  carregando={carregando}
-                  onPress={fetchTelemetriaEAlertas}
-                />
-              </View>
-            </View>
-          ) : (
-            <>
-              {mediaTemperatura && (
-                <View style={styles.secao}>
-                  <View style={styles.tituloSecaoContainer}>
-                    <Text style={styles.tituloSecao}>Média de Temperatura</Text>
-                    <View style={styles.espacoIcone}>{renderIconeStatus()}</View>
-                  </View>
-                  <View style={[styles.caixaStatus, { backgroundColor: corFundoStatus }]}>
-                    <Text style={[styles.caixaStatusTexto, { color: '#111111' }]}>
-                      {mediaTemperatura} °C
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {mediaUmidade && (
-                <View style={[styles.secao, { marginBottom: 24 }]}>
-                  <View style={styles.tituloSecaoContainer}>
-                    <Text style={styles.tituloSecao}>Umidade da Sala</Text>
-                    <View style={styles.espacoIcone}>{renderIconeStatus()}</View>
-                  </View>
-                  <View style={[styles.caixaStatus, { backgroundColor: corFundoStatus }]}>
-                    <Text style={[styles.caixaStatusTexto, { color: '#111111' }]}>
-                      {mediaUmidade} %
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              <View style={styles.botaoAcaoContainer}>
-                <BotaoIndustrial
-                  titulo="ATUALIZAR DADOS"
-                  icone="refresh-outline"
-                  cor="branco"
-                  carregando={carregando}
-                  onPress={fetchTelemetriaEAlertas}
-                />
-              </View>
-            </>
+      ) : erroConexao ? (
+        <View style={styles.erroContainer}>
+          <Text style={styles.erroTitulo}>Câmara Fria Desconectada</Text>
+          <Text style={styles.erroSubtexto}>
+            O servidor da câmara (ESP32/Flask) está desligado ou indisponível no momento.
+          </Text>
+          <View style={styles.botaoAcaoContainer}>
+            <BotaoIndustrial
+              titulo="TENTAR NOVAMENTE"
+              icone="refresh-outline"
+              backgroundColor={Colors.surfaceLight}
+              textColor={Colors.text.dark}
+              carregando={carregando}
+              onPress={fetchTelemetriaEAlertas}
+            />
+          </View>
+        </View>
+      ) : (
+        <>
+          {mediaTemperatura && (
+            <StatusPanel
+              titulo="Média de Temperatura"
+              valor={`${mediaTemperatura} °C`}
+              isAlerta={statusGeral === 'alerta' || statusGeral === 'vencido'}
+              isUrgente={statusGeral === 'urgente'}
+              iconeAlertaNode={statusGeral !== 'normal' ? renderIconeStatus() : undefined}
+            />
           )}
-        </View>
-      </View>
+
+          {mediaUmidade && (
+            <StatusPanel
+              titulo="Umidade da Sala"
+              valor={`${mediaUmidade} %`}
+              isAlerta={statusGeral === 'alerta' || statusGeral === 'vencido'}
+              isUrgente={statusGeral === 'urgente'}
+              iconeAlertaNode={statusGeral !== 'normal' ? renderIconeStatus() : undefined}
+            />
+          )}
+
+          <View style={styles.botaoAcaoContainer}>
+            <BotaoIndustrial
+              titulo="ATUALIZAR DADOS"
+              icone="refresh-outline"
+              backgroundColor={Colors.surfaceLight}
+              textColor={Colors.text.dark}
+              carregando={carregando}
+              onPress={fetchTelemetriaEAlertas}
+            />
+          </View>
+        </>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro, padding: 24 },
-  card: { width: '100%', borderWidth: 1, borderColor: '#111111' },
-  cardHeader: {
-    backgroundColor: Colors.header,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-  },
-  cardHeaderTexto: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', marginRight: 8 },
-  cardBody: { backgroundColor: Colors.fundoCard, padding: 24, alignItems: 'center' },
-  loadingContainer: { paddingVertical: 30, alignItems: 'center' },
-  loadingTexto: { marginTop: 12, fontSize: 16, color: '#111111', fontWeight: 'bold' },
-  erroContainer: { width: '100%', alignItems: 'center', paddingVertical: 10 },
-  erroTitulo: { fontSize: 18, fontWeight: 'bold', color: '#111111', marginBottom: 8, textAlign: 'center' },
-  erroSubtexto: { fontSize: 14, color: '#555555', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
-  secao: { width: '100%', alignItems: 'center', marginBottom: 20 },
-  tituloSecaoContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  tituloSecao: { fontSize: 16, fontWeight: 'bold', color: '#111111' },
-  espacoIcone: { marginLeft: 8 },
-  caixaStatus: {
-    width: '100%',
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: '#111111',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  caixaStatusTexto: { color: '#111111', fontSize: 18, fontWeight: 'bold' },
-  botaoAcaoContainer: { width: '100%', marginTop: 8 },
+  container: { flex: 1, backgroundColor: Colors.background, padding: 24 },
+  loadingContainer: { paddingVertical: 30, alignItems: 'center', justifyContent: 'center', flex: 1 },
+  loadingTexto: { marginTop: 12, fontSize: 16, color: Colors.text.light, fontFamily: 'Inter_700Bold' },
+  erroContainer: { width: '100%', alignItems: 'center', paddingVertical: 40, justifyContent: 'center', flex: 1 },
+  erroTitulo: { fontSize: 20, fontFamily: 'Inter_700Bold', color: Colors.text.light, marginBottom: 12, textAlign: 'center' },
+  erroSubtexto: { fontSize: 16, color: Colors.text.muted, textAlign: 'center', marginBottom: 30, lineHeight: 22 },
+  botaoAcaoContainer: { width: '100%', marginTop: 20 },
 });

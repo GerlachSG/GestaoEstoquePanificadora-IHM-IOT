@@ -8,6 +8,7 @@ import { useAppStore } from '../store/appStore';
 import { processarLoginMicrosoft } from '../services/api/authService';
 import BotaoIndustrial from '../components/ui/BotaoIndustrial';
 import { Colors } from '../constants/Colors';
+import { IconeLogoGespaoSvg } from '../components/ui/IconesOficiais';
 
 // Necessário para o navegador embutido fechar sozinho após o login
 WebBrowser.maybeCompleteAuthSession();
@@ -33,7 +34,7 @@ export default function LoginScreen() {
       scopes: ['openid', 'profile', 'email', 'offline_access'],
       redirectUri: REDIRECT_URI,
       extraParams: {
-        prompt: 'login',
+        prompt: 'select_account',
       },
     },
     discovery
@@ -45,40 +46,28 @@ export default function LoginScreen() {
       if (response?.type === 'success' && request) {
         setCarregando(true);
         try {
-          // 1. Pegamos o "Código de Autorização" da resposta
           const { code } = response.params;
 
-          // 2. Fazemos a troca silenciosa do Código pelo Token JWT real
           const tokenResponse = await exchangeCodeAsync(
             {
               clientId: ENTRA_CLIENT_ID,
               code,
               redirectUri: REDIRECT_URI,
               extraParams: {
-                // Esse verificador é o que garante a segurança máxima (PKCE)
                 code_verifier: request.codeVerifier || '', 
               },
             },
             discovery
           );
 
-          // 3. A Microsoft devolve o idToken (com e-mail/cargo) e o accessToken (para APIs).
-          // Garantimos que pegamos um Token em formato JWT legível.
           const tokenJwt = tokenResponse.idToken || tokenResponse.accessToken;
 
           if (!tokenJwt) throw new Error('Nenhum token recebido do servidor.');
 
-          // 4. Passamos para a sua função super robusta ler e salvar!
           const session = await processarLoginMicrosoft(tokenJwt);
           
           setAuthSession(session.token, session.role, session.email);
-          
-          // Padeiro vai direto para o módulo de produção
-          if (session.role === 'Producao') {
-            router.replace('/producao');
-          } else {
-            router.replace('/');
-          }
+          router.replace('/');
 
         } catch (error) {
           console.error(error);
@@ -101,36 +90,59 @@ export default function LoginScreen() {
       style={styles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.marca}>
+        <IconeLogoGespaoSvg width={88} height={88} color={Colors.text.light} />
+        <Text style={styles.titulo}>Três Irmãos</Text>
+        <Text style={styles.subtitulo}>Gestão de Produção e Estoque</Text>
+      </View>
+
       <View style={styles.formContainer}>
-        <Text style={styles.titulo}>Autenticação</Text>
-        <Text style={styles.subtitulo}>Sistemas Três Irmãos</Text>
-        
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoTexto}>
-            Para garantir a segurança industrial, o login agora exige verificação em duas etapas (2FA).
-          </Text>
+        <View style={styles.formHeader}>
+          <Text style={styles.formHeaderTexto}>ACESSO RESTRITO</Text>
         </View>
 
-        <BotaoIndustrial 
-          titulo="ENTRAR COM A MICROSOFT" 
-          cor="normal" 
-          onPress={() => {
-            if (iniciouLogin || !request || carregando) return;
-            setIniciouLogin(true);
-            promptAsync().catch(() => setIniciouLogin(false));
-          }} 
-          carregando={!request || carregando || iniciouLogin} 
-        />
+        <View style={styles.formBody}>
+          <Text style={styles.infoTexto}>
+            Acesse usando suas credenciais corporativas.
+          </Text>
+
+          <BotaoIndustrial 
+            titulo="ENTRAR COM A MICROSOFT" 
+            icone="log-in-outline"
+            backgroundColor={Colors.surfaceLight}
+            textColor={Colors.text.dark}
+            onPress={() => {
+              if (iniciouLogin || !request || carregando) return;
+              setIniciouLogin(true);
+              promptAsync().catch(() => setIniciouLogin(false));
+            }} 
+            carregando={!request || carregando || iniciouLogin} 
+          />
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  formContainer: { width: '100%', maxWidth: 400, backgroundColor: Colors.fundoCard, padding: 30, borderRadius: 8, borderWidth: 1, borderColor: '#111111' },
-  titulo: { fontSize: 28, fontWeight: 'bold', color: '#111111', marginBottom: 5, textAlign: 'center' },
-  subtitulo: { fontSize: 16, color: '#555555', marginBottom: 30, textAlign: 'center' },
-  infoContainer: { backgroundColor: '#DFE4F2', padding: 15, borderRadius: 6, marginBottom: 25, borderWidth: 1, borderColor: '#111111' },
-  infoTexto: { color: '#111111', fontSize: 14, textAlign: 'center', fontWeight: 'bold' }
+  container: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  marca: { alignItems: 'center', marginBottom: 36 },
+  titulo: { fontSize: 32, fontFamily: 'Inter_700Bold', color: Colors.text.light, marginTop: 16, textAlign: 'center' },
+  subtitulo: { fontSize: 15, fontFamily: 'Inter_500Medium', color: Colors.text.muted, marginTop: 4, textAlign: 'center' },
+  formContainer: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: Colors.header,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  formHeader: { paddingVertical: 14, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  formHeaderTexto: { color: Colors.text.light, fontFamily: 'Inter_700Bold', fontSize: 16 },
+  formBody: { padding: 24, paddingBottom: 24 },
+  infoTexto: { color: Colors.text.muted, fontSize: 14, textAlign: 'center', fontFamily: 'Inter_500Medium', marginBottom: 24 },
 });

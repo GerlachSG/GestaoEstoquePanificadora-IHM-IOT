@@ -1,12 +1,25 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { IconeVencidoSvg, IconeUrgenteSvg, IconeAlertaSvg } from '../../components/ui/IconesBase';
+import ActionCard from '../../components/ui/ActionCard';
+import SeletorModal from '../../components/ui/SeletorModal';
 import { buscarAlertasLotes, LoteAlerta } from '../../services/api/loteService';
 import { useAppStore } from '../../store/appStore';
 
+type FiltroUrgencia = 'todos' | 'vencido' | 'urgente' | 'alerta' | 'normal';
+
+const OPCOES_URGENCIA: { valor: FiltroUrgencia; rotulo: string; descricao: string }[] = [
+  { valor: 'todos', rotulo: 'TODOS', descricao: 'Exibe todos os lotes' },
+  { valor: 'vencido', rotulo: 'VENCIDO', descricao: 'Validade já expirada' },
+  { valor: 'urgente', rotulo: 'URGENTE', descricao: 'Vence nas próximas horas' },
+  { valor: 'alerta', rotulo: 'ALERTA', descricao: 'Próximo do vencimento' },
+  { valor: 'normal', rotulo: 'NORMAL', descricao: 'Dentro do prazo' },
+];
+
 export default function AlertasScreen() {
-  const [busca, setBusca] = useState('');
+  const [filtroUrgencia, setFiltroUrgencia] = useState<FiltroUrgencia>('todos');
+  const [modalFiltroVisivel, setModalFiltroVisivel] = useState(false);
   const lotesStore = useAppStore((state) => state.estoque);
   const setEstoque = useAppStore((state) => state.setEstoque);
   
@@ -39,12 +52,10 @@ export default function AlertasScreen() {
   const lotesFiltradosEOrdenados = useMemo(() => {
     let filtrados = lotesStore;
     
-    if (busca.trim() !== '') {
-      const termo = busca.toLowerCase();
+    if (filtroUrgencia !== 'todos') {
       filtrados = filtrados.filter(lote => {
-        const itemNome = (lote.item || '').toLowerCase();
-        const loteCodigo = (lote.idLote || lote.id || '').toLowerCase();
-        return itemNome.includes(termo) || loteCodigo.includes(termo);
+        const status = ['vencido', 'urgente', 'alerta'].includes(lote.status) ? lote.status : 'normal';
+        return status === filtroUrgencia;
       });
     }
 
@@ -62,7 +73,7 @@ export default function AlertasScreen() {
       }
       return (a.item || '').localeCompare(b.item || '');
     });
-  }, [busca, lotesStore]);
+  }, [filtroUrgencia, lotesStore]);
 
   const getStatusMaisCritico = () => {
     if (lotesStore.some(lote => lote.status === 'vencido')) return 'vencido';
@@ -86,15 +97,14 @@ export default function AlertasScreen() {
 
   const renderItem = (lote: LoteAlerta) => {
     let bgColor = Colors.status.normal;
-    let textColor = '#FFFFFF';
+    let textColor = '#111111'; // Sempre preto para legibilidade nas cores ISO
 
     if (lote.status === 'vencido') {
-      bgColor = Colors.status.vencido;
+      bgColor = Colors.status.urgente; // Vencido usa o vermelho urgente
     } else if (lote.status === 'urgente') {
       bgColor = Colors.status.urgente;
     } else if (lote.status === 'alerta') {
       bgColor = Colors.status.alerta;
-      textColor = '#111111';
     }
 
     const codigoLote = lote.idLote || lote.id || 'N/A';
@@ -134,14 +144,21 @@ export default function AlertasScreen() {
         </View>
 
         <View style={styles.buscaContainer}>
-          <TextInput
-            style={styles.inputBusca}
-            placeholder="BUSCAR LOTE OU ITEM..."
-            placeholderTextColor="#768AA4"
-            value={busca}
-            onChangeText={setBusca}
+          <ActionCard
+            titulo="NÍVEL DE URGÊNCIA"
+            valor={OPCOES_URGENCIA.find((o) => o.valor === filtroUrgencia)?.rotulo || 'TODOS'}
+            onPress={() => setModalFiltroVisivel(true)}
           />
         </View>
+
+        <SeletorModal
+          visivel={modalFiltroVisivel}
+          titulo="Filtrar por Urgência"
+          opcoes={OPCOES_URGENCIA}
+          valorSelecionado={filtroUrgencia}
+          onSelecionar={(valor) => setFiltroUrgencia(valor as FiltroUrgencia)}
+          onFechar={() => setModalFiltroVisivel(false)}
+        />
 
         <ScrollView
           style={styles.scrollView}
@@ -171,87 +188,77 @@ export default function AlertasScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.fundoEscuro,
-    padding: 16,
+    backgroundColor: Colors.background,
+    padding: 8,
   },
   card: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: Colors.fundoCard, 
+    backgroundColor: Colors.background,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   cardHeader: {
     backgroundColor: Colors.header,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardHeaderTexto: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   espacoIcone: {
     marginLeft: 8,
   },
   buscaContainer: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-  },
-  inputBusca: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: '#DFE4F2',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111111',
+    paddingTop: 12,
+    paddingHorizontal: 4,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: Colors.fundoCard,
+    backgroundColor: Colors.background,
   },
   listaContainer: {
-    padding: 16,
+    paddingHorizontal: 4,
+    paddingBottom: 20,
   },
   itemContainer: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 2,
   },
   linhaTopo: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#111111',
+    borderBottomColor: 'rgba(0,0,0,0.12)',
   },
   colunaItem: {
     flex: 1,
-    padding: 12,
+    padding: 16,
     borderRightWidth: 1,
-    borderRightColor: '#111111',
+    borderRightColor: 'rgba(0,0,0,0.12)',
     justifyContent: 'center',
   },
   labelEscuro: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#111111',
+    color: '#555555',
   },
   valorEscuro: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#111111',
     marginTop: 2,
   },
   colunaAviso: {
     width: 130,
-    padding: 12,
+    padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -277,7 +284,7 @@ const styles = StyleSheet.create({
   },
   textoVazio: {
     textAlign: 'center',
-    color: '#111111',
+    color: '#FFFFFF',
     marginTop: 32,
     fontSize: 16,
     fontWeight: 'bold',

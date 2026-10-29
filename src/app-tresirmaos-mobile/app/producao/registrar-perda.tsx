@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, Modal, TouchableOpacity, FlatList, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, Alert, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
+import ActionCard from '../../components/ui/ActionCard';
+import SeletorModal from '../../components/ui/SeletorModal';
 import { useAppStore } from '../../store/appStore';
-import { listarCatalogo, ProdutoCatalogo } from '../../services/api/catalogoService';
-import { listarProdutos, ProdutoFinal, CATEGORIAS_PADRAO } from '../../services/api/produtosService';
+import { listarCatalogo } from '../../services/api/catalogoService';
+import { listarProdutos, CATEGORIAS_PADRAO } from '../../services/api/produtosService';
 import { verificarStatusEtiqueta } from '../../services/api/loteService';
 import { registrarPerda, obterResumoTurno, EventoProducao } from '../../services/api/producaoService';
 
@@ -158,17 +160,16 @@ export default function RegistrarPerdaScreen() {
         Alert.alert('Lote Inválido', 'Este lote não foi encontrado no sistema.');
       }
     } catch (error: any) {
-      console.error('Erro ao validar lote:', error);
-      Alert.alert('Erro', 'Não foi possível validar o lote: ' + (error.message || 'Erro'));
+      Alert.alert('Erro', 'Falha ao verificar lote: ' + (error.message || 'Erro de conexão.'));
     } finally {
       setValidandoLote(false);
     }
   };
 
-  // --- Salvar perda ---
+  // --- Salvar Perda ---
   const handleSalvarPerda = async () => {
     if (!turnoAtivo) {
-      Alert.alert('Erro', 'Nenhum turno aberto no momento.');
+      Alert.alert('Erro', 'Nenhum turno aberto.');
       return;
     }
 
@@ -176,11 +177,11 @@ export default function RegistrarPerdaScreen() {
 
     if (tipoOrigem === 'materia_prima') {
       if (!mpSelecionada) {
-        Alert.alert('Atenção', 'Selecione a matéria-prima.');
+        Alert.alert('Atenção', 'Selecione o insumo perdido.');
         return;
       }
       if (!loteIdSelecionado) {
-        Alert.alert('Atenção', 'Selecione ou digite um lote.');
+        Alert.alert('Atenção', 'Selecione ou valide o lote de origem.');
         return;
       }
       const qtd = parseFloat(quantidadeMp.replace(',', '.'));
@@ -195,6 +196,7 @@ export default function RegistrarPerdaScreen() {
           turnoId: turnoAtivo.id,
           item: mpSelecionada.id,
           itemNome: mpSelecionada.nome,
+          loteId: loteIdSelecionado,
           quantidade: qtd,
           unidade: 'kg',
           motivo: motivoSelecionado,
@@ -213,7 +215,6 @@ export default function RegistrarPerdaScreen() {
         setSalvando(false);
       }
     } else {
-      // Produto Acabado
       if (!produtoSelecionado) {
         Alert.alert('Atenção', 'Selecione o produto acabado.');
         return;
@@ -250,6 +251,25 @@ export default function RegistrarPerdaScreen() {
     }
   };
 
+  // Opções para os modais
+  const opcoesLotes = useMemo(() => {
+    const lista = lotesDoInsumo.map((c) => ({
+      valor: c.loteId || c.id || 'N/A',
+      rotulo: `Lote ${c.loteId || c.id} (${c.quantidade} ${c.unidade || 'kg'})`,
+    }));
+    lista.push({ valor: '__OUTRO__', rotulo: 'Digitar outro lote manualmente...' });
+    return lista;
+  }, [lotesDoInsumo]);
+
+  const opcoesFornadas = useMemo(
+    () =>
+      fornadasDoProduto.map((f) => ({
+        valor: f.id,
+        rotulo: `Fornada ${f.id} (${f.quantidade} ${f.unidade})`,
+      })),
+    [fornadasDoProduto]
+  );
+
   if (carregando) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -271,47 +291,30 @@ export default function RegistrarPerdaScreen() {
             </View>
 
             <View style={styles.cardBody}>
-              {/* SELETOR DE TIPO */}
-              <Text style={styles.labelCampo}>TIPO DE ITEM:</Text>
-              <TouchableOpacity
-                style={styles.seletorBotao}
+              {/* SELETOR DE TIPO ESTILO NOVO LOTE */}
+              <ActionCard
+                titulo="TIPO DE ITEM"
+                valor={tipoOrigem === 'materia_prima' ? 'MATÉRIA-PRIMA' : 'PRODUTO ACABADO'}
                 onPress={() => setModalTipoVisivel(true)}
-              >
-                <Text style={styles.seletorBotaoTexto}>
-                  {tipoOrigem === 'materia_prima' ? 'MATÉRIA-PRIMA' : 'PRODUTO ACABADO'}
-                </Text>
-              </TouchableOpacity>
+              />
 
               {/* ========== FLUXO MATÉRIA-PRIMA ========== */}
               {tipoOrigem === 'materia_prima' && (
                 <>
-                  {/* Seletor do Insumo */}
-                  <Text style={styles.labelCampo}>INSUMO:</Text>
-                  <TouchableOpacity
-                    style={styles.seletorBotao}
+                  <ActionCard
+                    titulo="INSUMO"
+                    valor={mpSelecionada ? mpSelecionada.nome : 'SELECIONAR INSUMO'}
                     onPress={() => setModalMpVisivel(true)}
-                  >
-                    <Text style={styles.seletorBotaoTexto}>
-                      {mpSelecionada ? mpSelecionada.nome : 'TOQUE PARA SELECIONAR'}
-                    </Text>
-                  </TouchableOpacity>
+                  />
 
-                  {/* Seletor de Lote (consumidos no turno + Outro) */}
                   {mpSelecionada && (
                     <>
-                      <Text style={styles.labelCampo}>LOTE:</Text>
-                      <TouchableOpacity
-                        style={styles.seletorBotao}
+                      <ActionCard
+                        titulo="LOTE DE ORIGEM"
+                        valor={loteIdSelecionado ? loteIdSelecionado : 'SELECIONAR LOTE'}
                         onPress={() => setModalLoteVisivel(true)}
-                      >
-                        <Text style={styles.seletorBotaoTexto}>
-                          {loteIdSelecionado
-                            ? loteIdSelecionado
-                            : 'TOQUE PARA SELECIONAR O LOTE'}
-                        </Text>
-                      </TouchableOpacity>
+                      />
 
-                      {/* Lote manual — input + validação */}
                       {usarLoteManual && (
                         <View style={styles.loteManualContainer}>
                           <TextInput
@@ -324,14 +327,14 @@ export default function RegistrarPerdaScreen() {
                           />
                           <BotaoIndustrial
                             titulo="VALIDAR LOTE"
-                            cor="branco"
+                            backgroundColor={Colors.surfaceLight}
+                            textColor={Colors.text.dark}
                             carregando={validandoLote}
                             onPress={handleValidarLoteManual}
                           />
                         </View>
                       )}
 
-                      {/* Quantidade KG */}
                       <Text style={styles.labelCampo}>QUANTIDADE PERDIDA (KG):</Text>
                       <TextInput
                         style={styles.inputQuantidade}
@@ -349,46 +352,26 @@ export default function RegistrarPerdaScreen() {
               {/* ========== FLUXO PRODUTO ACABADO ========== */}
               {tipoOrigem === 'produto_acabado' && (
                 <>
-                  {/* Seletor de Categoria */}
-                  <Text style={styles.labelCampo}>CATEGORIA:</Text>
-                  <TouchableOpacity
-                    style={styles.seletorBotao}
+                  <ActionCard
+                    titulo="CATEGORIA"
+                    valor={categoriaSelecionada || 'TODAS AS CATEGORIAS'}
                     onPress={() => setModalCategoriaVisivel(true)}
-                  >
-                    <Text style={styles.seletorBotaoTexto}>
-                      {categoriaSelecionada || 'TODAS AS CATEGORIAS'}
-                    </Text>
-                  </TouchableOpacity>
+                  />
 
-                  {/* Seletor de Produto */}
-                  <Text style={styles.labelCampo}>ITEM PERDIDO:</Text>
-                  <TouchableOpacity
-                    style={styles.seletorBotao}
+                  <ActionCard
+                    titulo="ITEM PERDIDO"
+                    valor={produtoSelecionado ? produtoSelecionado.nome : 'SELECIONAR ITEM'}
                     onPress={() => setModalProdutoVisivel(true)}
-                  >
-                    <Text style={styles.seletorBotaoTexto}>
-                      {produtoSelecionado ? produtoSelecionado.nome : 'TOQUE PARA SELECIONAR'}
-                    </Text>
-                  </TouchableOpacity>
+                  />
 
-                  {/* Seletor de Fornada (do turno) */}
                   {produtoSelecionado && fornadasDoProduto.length > 0 && (
-                    <>
-                      <Text style={styles.labelCampo}>FORNADA DO TURNO:</Text>
-                      <TouchableOpacity
-                        style={styles.seletorBotao}
-                        onPress={() => setModalFornadaVisivel(true)}
-                      >
-                        <Text style={styles.seletorBotaoTexto}>
-                          {fornadaSelecionada
-                            ? `Selecionado (${fornadaSelecionada.quantidade} ${fornadaSelecionada.unidade})`
-                            : 'TOQUE PARA SELECIONAR A FORNADA'}
-                        </Text>
-                      </TouchableOpacity>
-                    </>
+                    <ActionCard
+                      titulo="FORNADA DO TURNO"
+                      valor={fornadaSelecionada ? `Fornada ${fornadaSelecionada.id}` : 'SELECIONAR FORNADA'}
+                      onPress={() => setModalFornadaVisivel(true)}
+                    />
                   )}
 
-                  {/* Quantidade UN */}
                   {produtoSelecionado && (
                     <>
                       <Text style={styles.labelCampo}>QUANTIDADE PERDIDA (UN):</Text>
@@ -406,20 +389,19 @@ export default function RegistrarPerdaScreen() {
               )}
 
               {/* MOTIVO */}
-              <Text style={styles.labelCampo}>MOTIVO:</Text>
-              <TouchableOpacity
-                style={styles.seletorBotao}
+              <ActionCard
+                titulo="MOTIVO DA PERDA"
+                valor={motivoSelecionado}
                 onPress={() => setModalMotivoVisivel(true)}
-              >
-                <Text style={styles.seletorBotaoTexto}>{motivoSelecionado}</Text>
-              </TouchableOpacity>
+              />
 
               {/* BOTÃO SALVAR */}
               <View style={styles.botaoWrapper}>
                 <BotaoIndustrial
                   titulo="REGISTRAR PERDA"
                   icone="warning-outline"
-                  cor="branco"
+                  backgroundColor={Colors.surfaceLight}
+                  textColor={Colors.text.dark}
                   carregando={salvando}
                   onPress={handleSalvarPerda}
                 />
@@ -428,285 +410,136 @@ export default function RegistrarPerdaScreen() {
           </View>
         </ScrollView>
 
-        {/* ========== MODAIS ========== */}
+        {/* ========== MODAIS SELETORES PADRÃO NOVO LOTE ========== */}
 
-        {/* Modal Tipo de Item */}
-        <Modal visible={modalTipoVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>TIPO DE ITEM</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => { handleTrocarOrigem('materia_prima'); setModalTipoVisivel(false); }}
-              >
-                <Text style={styles.modalItemTexto}>MATÉRIA-PRIMA</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => { handleTrocarOrigem('produto_acabado'); setModalTipoVisivel(false); }}
-              >
-                <Text style={styles.modalItemTexto}>PRODUTO ACABADO</Text>
-              </TouchableOpacity>
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial titulo="FECHAR" cor="branco" onPress={() => setModalTipoVisivel(false)} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SeletorModal
+          visivel={modalTipoVisivel}
+          titulo="Selecione o Tipo de Item"
+          opcoes={[
+            { valor: 'materia_prima', rotulo: 'MATÉRIA-PRIMA' },
+            { valor: 'produto_acabado', rotulo: 'PRODUTO ACABADO' },
+          ]}
+          valorSelecionado={tipoOrigem}
+          onSelecionar={(v) => handleTrocarOrigem(v as TipoOrigem)}
+          onFechar={() => setModalTipoVisivel(false)}
+        />
 
-        {/* Modal Matéria-Prima */}
-        <Modal visible={modalMpVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>MATÉRIA-PRIMA</Text>
-              </View>
-              <FlatList
-                data={materiaPrima}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setMpSelecionada(item);
-                      setLoteIdSelecionado(null);
-                      setUsarLoteManual(false);
-                      setLoteManualTexto('');
-                      setModalMpVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item.nome}</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={<Text style={styles.listaVazia}>Nenhum item encontrado.</Text>}
-              />
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial titulo="FECHAR" cor="branco" onPress={() => setModalMpVisivel(false)} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SeletorModal
+          visivel={modalMpVisivel}
+          titulo="Selecione o Insumo"
+          opcoes={materiaPrima.map((m) => ({ valor: m.id, rotulo: m.nome }))}
+          valorSelecionado={mpSelecionada?.id}
+          onSelecionar={(id) => {
+            const encontrado = materiaPrima.find((m) => m.id === id) || null;
+            setMpSelecionada(encontrado);
+            setLoteIdSelecionado(null);
+            setUsarLoteManual(false);
+          }}
+          onFechar={() => setModalMpVisivel(false)}
+        />
 
-        {/* Modal Lotes consumidos no turno + Outro */}
-        <Modal visible={modalLoteVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>LOTES RETIRADOS NO TURNO</Text>
-              </View>
-              <FlatList
-                data={lotesDoInsumo}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setLoteIdSelecionado(item.loteId || item.id);
-                      setUsarLoteManual(false);
-                      setModalLoteVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item.loteId || item.id}</Text>
-                    <Text style={styles.modalItemCategoria}>{item.quantidade} kg retirados</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={styles.listaVazia}>Nenhum lote retirado neste turno para este insumo.</Text>
-                }
-              />
-              <TouchableOpacity
-                style={[styles.modalItem, { backgroundColor: '#DFE4F2' }]}
-                onPress={() => {
-                  setUsarLoteManual(true);
-                  setLoteIdSelecionado(null);
-                  setModalLoteVisivel(false);
-                }}
-              >
-                <Text style={[styles.modalItemTexto, { textAlign: 'center' }]}>OUTRO (DIGITAR MANUALMENTE)</Text>
-              </TouchableOpacity>
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial titulo="FECHAR" cor="branco" onPress={() => setModalLoteVisivel(false)} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SeletorModal
+          visivel={modalLoteVisivel}
+          titulo="Lote Consumido no Turno"
+          opcoes={opcoesLotes}
+          valorSelecionado={loteIdSelecionado}
+          onSelecionar={(loteId) => {
+            if (loteId === '__OUTRO__') {
+              setUsarLoteManual(true);
+              setLoteIdSelecionado(null);
+            } else {
+              setLoteIdSelecionado(loteId);
+              setUsarLoteManual(false);
+            }
+          }}
+          onFechar={() => setModalLoteVisivel(false)}
+        />
 
-        {/* Modal Categorias */}
-        <Modal visible={modalCategoriaVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>CATEGORIA</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => { setCategoriaSelecionada(null); setModalCategoriaVisivel(false); }}
-              >
-                <Text style={styles.modalItemTexto}>TODAS AS CATEGORIAS</Text>
-              </TouchableOpacity>
-              <FlatList
-                data={CATEGORIAS_PADRAO}
-                keyExtractor={(item) => item}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => { setCategoriaSelecionada(item); setModalCategoriaVisivel(false); }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial titulo="FECHAR" cor="branco" onPress={() => setModalCategoriaVisivel(false)} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SeletorModal
+          visivel={modalCategoriaVisivel}
+          titulo="Selecione a Categoria"
+          opcoes={[
+            { valor: 'TODAS', rotulo: 'TODAS AS CATEGORIAS' },
+            ...CATEGORIAS_PADRAO.map((c) => ({ valor: c, rotulo: c })),
+          ]}
+          valorSelecionado={categoriaSelecionada || 'TODAS'}
+          onSelecionar={(cat) => setCategoriaSelecionada(cat === 'TODAS' ? null : cat)}
+          onFechar={() => setModalCategoriaVisivel(false)}
+        />
 
-        {/* Modal Produto Acabado */}
-        <Modal visible={modalProdutoVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>
-                  {categoriaSelecionada ? categoriaSelecionada.toUpperCase() : 'TODOS OS PRODUTOS'}
-                </Text>
-              </View>
-              <FlatList
-                data={produtosFiltrados}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setProdutoSelecionado(item);
-                      setFornadaSelecionada(null);
-                      setModalProdutoVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item.nome}</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={<Text style={styles.listaVazia}>Nenhum produto encontrado.</Text>}
-              />
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial titulo="FECHAR" cor="branco" onPress={() => setModalProdutoVisivel(false)} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SeletorModal
+          visivel={modalProdutoVisivel}
+          titulo="Selecione o Produto"
+          opcoes={produtosFiltrados.map((p) => ({ valor: p.id, rotulo: p.nome, descricao: p.categoria }))}
+          valorSelecionado={produtoSelecionado?.id}
+          onSelecionar={(id) => {
+            const encontrado = produtosFiltrados.find((p) => p.id === id) || null;
+            setProdutoSelecionado(encontrado);
+            setFornadaSelecionada(null);
+          }}
+          onFechar={() => setModalProdutoVisivel(false)}
+        />
 
-        {/* Modal Fornada do Turno */}
-        <Modal visible={modalFornadaVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>FORNADAS DO TURNO</Text>
-              </View>
-              <FlatList
-                data={fornadasDoProduto}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => {
-                  let formatacaoTempo = item.id;
-                  if (item.dataHora) {
-                    const diffMs = Date.now() - new Date(item.dataHora).getTime();
-                    const diffMin = Math.floor(diffMs / 60000);
-                    if (diffMin < 60) {
-                      formatacaoTempo = `Produzido há ${diffMin} min`;
-                    } else {
-                      const horas = Math.floor(diffMin / 60);
-                      formatacaoTempo = `Produzido há ${horas} hora(s)`;
-                    }
-                  }
-                  
-                  return (
-                    <TouchableOpacity
-                      style={styles.modalItem}
-                      onPress={() => { setFornadaSelecionada(item); setModalFornadaVisivel(false); }}
-                    >
-                      <Text style={styles.modalItemTexto}>{formatacaoTempo}</Text>
-                      <Text style={styles.modalItemCategoria}>{item.quantidade} {item.unidade} produzidos</Text>
-                    </TouchableOpacity>
-                  );
-                }}
-                ListEmptyComponent={<Text style={styles.listaVazia}>Nenhuma fornada registrada.</Text>}
-              />
-              <TouchableOpacity
-                style={[styles.modalItem, { backgroundColor: '#DFE4F2' }]}
-                onPress={() => { setFornadaSelecionada(null); setModalFornadaVisivel(false); }}
-              >
-                <Text style={[styles.modalItemTexto, { textAlign: 'center' }]}>ÚLTIMOS PRODUTOS</Text>
-              </TouchableOpacity>
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial titulo="FECHAR" cor="branco" onPress={() => setModalFornadaVisivel(false)} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SeletorModal
+          visivel={modalFornadaVisivel}
+          titulo="Selecione a Fornada"
+          opcoes={opcoesFornadas}
+          valorSelecionado={fornadaSelecionada?.id}
+          onSelecionar={(id) => {
+            const encontrado = fornadasDoProduto.find((f) => f.id === id) || null;
+            setFornadaSelecionada(encontrado);
+          }}
+          onFechar={() => setModalFornadaVisivel(false)}
+        />
 
-        {/* Modal Motivo */}
-        <Modal visible={modalMotivoVisivel} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTexto}>MOTIVO DA PERDA</Text>
-              </View>
-              <FlatList
-                data={MOTIVOS_PADRAO}
-                keyExtractor={(item) => item}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => { setMotivoSelecionado(item); setModalMotivoVisivel(false); }}
-                  >
-                    <Text style={styles.modalItemTexto}>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-              <View style={styles.modalFooter}>
-                <BotaoIndustrial titulo="FECHAR" cor="branco" onPress={() => setModalMotivoVisivel(false)} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <SeletorModal
+          visivel={modalMotivoVisivel}
+          titulo="Motivo da Perda"
+          opcoes={MOTIVOS_PADRAO.map((m) => ({ valor: m, rotulo: m }))}
+          valorSelecionado={motivoSelecionado}
+          onSelecionar={setMotivoSelecionado}
+          onFechar={() => setModalMotivoVisivel(false)}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.fundoEscuro },
+  container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { padding: 16 },
   card: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    backgroundColor: Colors.fundoCard,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   cardHeader: {
     backgroundColor: Colors.header,
-    paddingVertical: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#111111',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardHeaderTexto: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  cardHeaderTexto: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
   cardBody: { padding: 20 },
   labelCampo: { fontSize: 14, fontWeight: 'bold', color: '#111111', marginBottom: 8 },
-  seletorBotao: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#111111',
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  seletorBotaoTexto: { fontSize: 16, fontWeight: 'bold', color: '#111111', textAlign: 'center' },
   inputQuantidade: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#111111',
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 18,
@@ -719,6 +552,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#111111',
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 14,
@@ -727,46 +561,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   loteManualContainer: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.surfaceLight,
     borderWidth: 1,
     borderColor: '#111111',
+    borderRadius: 12,
     padding: 16,
     marginBottom: 20,
   },
   botaoWrapper: { marginTop: 8 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: Colors.fundoCard,
-    borderWidth: 1,
-    borderColor: '#111111',
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    backgroundColor: Colors.header,
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-    alignItems: 'center',
-  },
-  modalHeaderTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-  modalItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#111111',
-    backgroundColor: '#FFFFFF',
-  },
-  modalItemTexto: { fontSize: 16, fontWeight: 'bold', color: '#111111' },
-  modalItemCategoria: { fontSize: 12, color: '#555555', marginTop: 2 },
-  modalFooter: { padding: 16 },
-  listaVazia: {
-    padding: 20,
-    textAlign: 'center',
-    color: '#555555',
-    fontWeight: 'bold',
-  },
 });

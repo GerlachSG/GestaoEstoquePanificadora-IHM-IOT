@@ -2,6 +2,7 @@
 // Camada de persistência para lotes/volumes via Azure Functions REST.
 
 import { apiRequest } from './apiClient';
+import { CACHE_KEYS } from '../cache/cacheService';
 
 export interface LotePayload {
   id: string;           // Ex: L-F12-XY-01
@@ -9,6 +10,11 @@ export interface LotePayload {
   loteFornecedor?: string;
   validade: string;     // Ex: 10/12/2026
   pesoKg: number;
+  quantidadeOriginal?: number;
+  origem?: string;
+  categoria?: string;
+  itemNome?: string;
+  displayName?: string;
   LotePrincipal: string; // Ex: L-F12-XY
   status: 'ativo' | 'excluido';
   dataCriacao: string;
@@ -30,6 +36,7 @@ export async function registrarEtiquetas(etiquetas: LotePayload[]): Promise<bool
   await apiRequest('/api/lotes', {
     method: 'POST',
     body: etiquetas,
+    offlineDescricao: 'Registrar novas etiquetas/lotes'
   });
   return true;
 }
@@ -132,7 +139,9 @@ export async function buscarLotesAtivos(): Promise<LotePayload[]> {
  */
 export async function buscarAlertasLotes(): Promise<LoteAlerta[]> {
   try {
-    const data = await apiRequest<LoteAlerta[]>('/api/lotes?alertas=true');
+    const data = await apiRequest<LoteAlerta[]>('/api/lotes?alertas=true', {
+      cacheKey: CACHE_KEYS.ESTOQUE_ALERTAS,
+    });
     return Array.isArray(data) ? data : [];
   } catch {
     return [];

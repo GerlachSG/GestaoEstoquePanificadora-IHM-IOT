@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
     Alert,
-    FlatList,
-    Modal,
     StyleSheet,
     Text,
     TextInput,
-    TouchableOpacity,
     View,
     Keyboard,
     TouchableWithoutFeedback,
 } from 'react-native';
 
 import BotaoIndustrial from '../../components/ui/BotaoIndustrial';
+import ActionCard from '../../components/ui/ActionCard';
+import SeletorModal, { OpcaoSeletor } from '../../components/ui/SeletorModal';
 import { Colors } from '../../constants/Colors';
-import { listarCatalogo, salvarProduto, deletarProduto, ProdutoCatalogo } from '../../services/api/catalogoService';
+import { listarCatalogo, salvarProduto, deletarProduto } from '../../services/api/catalogoService';
 import { useAppStore } from '../../store/appStore';
 
 interface ProdutoItem {
@@ -22,12 +21,6 @@ interface ProdutoItem {
     nome: string;
     min: number;
     max: number;
-}
-
-interface OptionItem {
-    id: string;
-    nome: string;
-    isNovo: boolean;
 }
 
 export default function GerenciarProdutosScreen() {
@@ -64,29 +57,32 @@ export default function GerenciarProdutosScreen() {
         carregarCatalogo();
     }, [updateLimiteStore]);
 
-    // Monta opções do modal: NOVO PRODUTO + catalogo existente
-    const opcoes: OptionItem[] = [
-        { id: 'novo', nome: 'NOVO PRODUTO', isNovo: true },
-        ...catalogo.map(p => ({ id: p.id, nome: p.nome, isNovo: false }))
+    const opcoesSeletor: OpcaoSeletor[] = [
+        { valor: '__novo__', rotulo: '+ NOVO PRODUTO', descricao: 'Cadastrar um novo produto no catálogo' },
+        ...catalogo.map(p => ({
+            valor: p.id,
+            rotulo: p.nome,
+            descricao: `Mínimo: ${p.min} kg | Máximo: ${p.max} kg`
+        }))
     ];
 
-    const handleSelecionarProduto = (opcao: OptionItem) => {
+    const handleSelecionarProduto = (valor: string) => {
         setModalSelectorVisivel(false);
         
-        if (opcao.isNovo) {
+        if (valor === '__novo__') {
             setProdutoSelecionado(null);
             setNomeProduto('');
             setMinimo('');
             setMaximo('');
-            setIsCriandoNovo(true); // <-- Adicionado aqui
+            setIsCriandoNovo(true);
         } else {
-            const prod = catalogo.find(p => p.id === opcao.id);
+            const prod = catalogo.find(p => p.id === valor);
             if (prod) {
                 setProdutoSelecionado(prod);
                 setNomeProduto(prod.nome);
                 setMinimo(prod.min.toString());
                 setMaximo(prod.max.toString());
-                setIsCriandoNovo(false); // <-- Adicionado aqui
+                setIsCriandoNovo(false);
             }
         }
     };
@@ -180,23 +176,17 @@ export default function GerenciarProdutosScreen() {
         <View style={styles.container}>
             <View style={styles.content}>
                 {/* Campo SELECIONAR PRODUTO */}
-                <View style={styles.campo}>
-                    <View style={styles.label}>
-                        <Text style={styles.labelTexto}>SELECIONAR PRODUTO</Text>
-                    </View>
-                    <TouchableOpacity
-                        style={styles.valor}
-                        onPress={() => setModalSelectorVisivel(true)}
-                    >
-                        <Text style={styles.valorTexto}>
-                            {produtoSelecionado
-                                ? produtoSelecionado.nome
-                                : isCriandoNovo
-                                    ? 'NOVO PRODUTO' 
-                                    : 'SELECIONAR'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                <ActionCard
+                    titulo="SELECIONAR PRODUTO"
+                    valor={
+                        produtoSelecionado
+                            ? produtoSelecionado.nome
+                            : isCriandoNovo
+                                ? 'NOVO PRODUTO'
+                                : 'SELECIONAR'
+                    }
+                    onPress={() => setModalSelectorVisivel(true)}
+                />
 
                 {/* Campo NOME DO PRODUTO */}
                 <View style={styles.campo}>
@@ -261,7 +251,8 @@ export default function GerenciarProdutosScreen() {
             <View style={styles.footer}>
                 <BotaoIndustrial
                     titulo={produtoSelecionado ? 'ATUALIZAR PRODUTO' : 'SALVAR NOVO PRODUTO'}
-                    cor="branco"
+                    backgroundColor={Colors.surfaceLight}
+                    textColor={Colors.text.dark}
                     onPress={handleSalvarOuAtualizar}
                 />
                 
@@ -269,47 +260,23 @@ export default function GerenciarProdutosScreen() {
                     <View style={{ marginTop: 12 }}>
                         <BotaoIndustrial
                             titulo="DELETAR PRODUTO"
-                            cor="branco"
+                            backgroundColor={Colors.surfaceLight}
+                            textColor={Colors.text.dark}
                             onPress={handleDeletar}
                         />
                     </View>
                 )}
             </View>
 
-            {/* Modal Selector de Produtos */}
-            <Modal visible={modalSelectorVisivel} transparent animationType="slide">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitulo}>Selecione o Produto</Text>
-                        <FlatList
-                            data={opcoes}
-                            keyExtractor={(item) => item.id}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    style={[
-                                        styles.modalItem,
-                                        item.isNovo && styles.modalItemNovo
-                                    ]}
-                                    onPress={() => handleSelecionarProduto(item)}
-                                >
-                                    <Text style={[
-                                        styles.modalItemTexto,
-                                        item.isNovo && styles.modalItemNovoTexto
-                                    ]}>
-                                        {item.nome}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
-                        />
-                        <TouchableOpacity
-                            style={styles.modalFechar}
-                            onPress={() => setModalSelectorVisivel(false)}
-                        >
-                            <Text style={styles.modalFecharTexto}>CANCELAR</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
+            {/* Modal Selector de Produtos no Padrão Novo Lote */}
+            <SeletorModal
+                visivel={modalSelectorVisivel}
+                titulo="SELECIONE O PRODUTO"
+                opcoes={opcoesSeletor}
+                valorSelecionado={produtoSelecionado ? produtoSelecionado.id : (isCriandoNovo ? '__novo__' : null)}
+                onSelecionar={handleSelecionarProduto}
+                onFechar={() => setModalSelectorVisivel(false)}
+            />
         </View>
         </TouchableWithoutFeedback>
     );
@@ -318,7 +285,7 @@ export default function GerenciarProdutosScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.fundoEscuro,
+        backgroundColor: Colors.background,
     },
     content: {
         flex: 1,
@@ -341,29 +308,25 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.header,
         paddingVertical: 10,
         alignItems: 'center',
+        borderTopLeftRadius: 12,
+        borderTopRightRadius: 12,
     },
     labelTexto: {
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: 'bold',
     },
-    valor: {
-        backgroundColor: '#FFFFFF',
-        paddingVertical: 14,
-        alignItems: 'center',
-    },
-    valorTexto: {
-        color: '#111111',
-        fontSize: 18,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
     valorInputBox: {
         backgroundColor: '#FFFFFF',
         paddingVertical: 0,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
+        borderWidth: 1,
+        borderTopWidth: 0,
+        borderColor: '#111111',
     },
     valorInputBoxDesabilitado: {
-        backgroundColor: '#BDBDBD',
+        backgroundColor: '#E5E7EB',
     },
     inputPeso: {
         fontSize: 18,
@@ -373,69 +336,10 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
     },
     inputDesabilitado: {
-        color: '#555555',
+        color: Colors.text.muted,
     },
     footer: {
         paddingHorizontal: 24,
         paddingBottom: 30,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        justifyContent: 'center',
-        paddingHorizontal: 30,
-    },
-    modalContainer: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 4,
-        paddingVertical: 16,
-        maxHeight: '80%', // <-- Adicionado o limite para fazer o scroll funcionar
-    },
-    modalTitulo: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111111',
-        textAlign: 'center',
-        marginBottom: 12,
-    },
-    modalItem: {
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
-    },
-    // Estilo novo para transformar a opção em um "botão" destacado
-    modalItemNovo: {
-        backgroundColor: Colors.header, 
-        marginHorizontal: 16,
-        marginTop: 4,
-        marginBottom: 12,
-        borderRadius: 6,
-        borderBottomWidth: 0, // Tira a linha de baixo
-        alignItems: 'center', // Centraliza o texto
-        elevation: 2, // Sombra leve no Android
-        shadowColor: '#000', // Sombra leve no iOS
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1.5,
-    },
-    modalItemTexto: {
-        fontSize: 16,
-        color: '#111111',
-        fontWeight: 'bold',
-    },
-    modalItemNovoTexto: {
-        color: '#FFFFFF', // Texto branco para contrastar com o fundo
-        fontSize: 16,
-    },
-    modalFechar: {
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    modalFecharTexto: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: Colors.status.urgente,
     },
 });
